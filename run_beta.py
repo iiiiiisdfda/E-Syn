@@ -15,6 +15,8 @@ import sys
 import concurrent.futures
 import subprocess
 import threading
+import time
+import multiprocessing
 sys.setrecursionlimit(100000)
 
 def check_equal(FORMULA_LIST, components):
@@ -214,8 +216,16 @@ if __name__ == "__main__":
     output_file_path = "test_data_beta_runner/original_circuit.eqn"
     
     ##
-    os.system("alpha_utils/circuitparser/target/release/circuitparser test_data_beta_runner/raw_circuit.eqn test_data_beta_runner/original_circuit.eqn test_data_beta_runner/input_for_s-converter.txt 100")
+    start_time = time.time() # 记录开始时间
+    
+    command = "alpha_utils/circuitparser/target/release/circuitparser test_data_beta_runner/raw_circuit.eqn test_data_beta_runner/original_circuit.eqn test_data_beta_runner/input_for_s-converter.txt 1000"
 
+    try:
+        # 执行命令并设置超时时间为300秒
+        completed_process = subprocess.run(command, shell=True, timeout=3600)
+    except subprocess.TimeoutExpired:
+        print("结束。执行时间超过3600秒。")
+        sys.exit()  # 终止Python程序
     #os.system("./circuitparser.out test_data_beta_runner/raw_circuit.eqn test_data_beta_runner/original_circuit.eqn")
 
     # parser =  CircuitParser.CircuitParser(input_file_path, output_file_path)
@@ -250,7 +260,15 @@ if __name__ == "__main__":
     #     # file to input string
     #     #FORMULA_LIST = conver_to_sexpr(data, multiple_output = multiple_output_flag)  
          os.system("alpha_utils/infix2lisp/target/release/s-converter test_data_beta_runner/input_for_s-converter.txt test_data_beta_runner/sexpr_for_egg.txt")
-          
+
+    end_time = time.time() # 记录结束时间
+    
+    execution_time = end_time - start_time # 计算时间差
+    
+    # if execution_time > 300:
+    #    print("Ending. Execution time exceeded 300 seconds.")
+    #    sys.exit()  # 终止Python程序
+    print("eqn to sexpr time:", execution_time, "seconds.")    
         
 
     # # '''
@@ -280,18 +298,65 @@ if __name__ == "__main__":
     #     thread = threading.Thread(target=convert_to_abc_eqn, args=(data, i, None, multiple_output_flag))
     #     threads.append(thread)
     #     thread.start()
-
     
+    #iterations =60
+    #num =iterations*6+2
+
+    num = 1
     max_processes = 64  # 设置最大进程数
     data = data  # 按需设置 data 的值
     multiple_output_flag = True  # 按需设置 multiple_output_flag 的值
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_processes) as executor:
-        futures = []
-        for i in range(30):
-            future = executor.submit(convert_to_abc_eqn, data, i, None, multiple_output_flag)
-            futures.append(future)
+    # with concurrent.futures.ProcessPoolExecutor(max_workers=max_processes) as executor:
+    #     futures = []
+    #     for i in range(num):
+    #         start_time = time.time() # 记录开始时间
+    #         future = executor.submit(convert_to_abc_eqn, data, i, None, multiple_output_flag)
+    #         futures.append(future)
+    #         end_time = time.time() # 记录结束时间
+    #         execution_time = end_time - start_time # 计算时间差
+    #         print("sexpr----eqn time cost:", execution_time, "s")    
+
+
+    #p-------------
+
+    # start_time = time.time() # Record start time
+    # convert_to_abc_eqn(data, 0,None, multiple_output=multiple_output_flag)
+    # end_time = time.time() # Record end time
+    # execution_time = end_time - start_time # Calculate time difference
+    # if execution_time > 300:
+    #    print("Ending. Execution time exceeded 300 seconds.")
+    #    sys.exit()  # 终止Python程序
+
+
+    # print("sexpr to eqn time cost:", execution_time, "s")
+    def run_with_timeout(func, args, timeout):
+        # 创建子进程并运行函数
+        process = multiprocessing.Process(target=func, args=args)
+        process.start()
     
+        # 等待函数执行完毕或超时
+        process.join(timeout)
+    
+        # 如果函数仍在运行，则终止子进程
+        if process.is_alive():
+            process.terminate()
+            process.join()
+    
+    start_time = time.time()  # 记录开始时间
+    
+    # 使用run_with_timeout函数运行convert_to_abc_eqn函数，并设置超时时间为300秒
+    run_with_timeout(convert_to_abc_eqn, (data, 0, None, multiple_output_flag), 300)
+    
+    end_time = time.time()  # 记录结束时间
+    execution_time = end_time - start_time  # 计算时间差
+    
+    if execution_time > 300:
+        print("结束。执行时间超过300秒。")
+        sys.exit()  # 终止Python程序
+    
+    print("sexpr to eqn:", execution_time, "秒")
+  
     #python - future - parallel
     # def process_iteration(i):
     #     convert_to_abc_eqn(data, None, multiple_output=multiple_output_flag, i=i)
@@ -335,13 +400,15 @@ if __name__ == "__main__":
         print("----------------------------------------------------------------------------------------")
 
     threads = []
-    for i in range(30):
+    for i in range(num):
         thread = threading.Thread(target=run_command, args=(i,))
         threads.append(thread)
         thread.start()
 
     for thread in threads:
         thread.join()    
+    # for i in range(30):
+    #     run_command(i)
 
 
 
@@ -389,6 +456,7 @@ if __name__ == "__main__":
     #############################################################################
     '''
     os.system("./abc/abc -c \"cec test_data_beta_runner/raw_circuit.eqn test_data_beta_runner/optimized_circuit0.eqn\"")
+    print("ending")
     # os.system("./abc/abc -c \"read_eqn test_data_beta_runner/raw_circuit.eqn; strash; write_aiger test_data_beta_runner/raw_circuit.aig\"")
     # os.system("./abc/abc -c \"read_eqn test_data_beta_runner/optimized_circuit.eqn; strash; write_aiger test_data_beta_runner/optimized_circuit.aig\"")
     # os.system("./abc/abc -c \"read_aiger test_data_beta_runner/raw_circuit.aig; collapse; write_blif test_data_beta_runner/raw_circuit.blif\"")

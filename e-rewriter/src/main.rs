@@ -10,6 +10,7 @@ use std::path::Path;
 mod utils;
 use std::error::Error;
 use std::fs::OpenOptions;
+use std::usize;
 use csv::Writer;
 use csv::WriterBuilder;
 use utils::{language::*,cost::*,sym_eval::*,extractor::*,xgboost::*};
@@ -29,31 +30,36 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     input_file.read_to_string(&mut contents)?;
     
     let expr: RecExpr<Prop> = contents.parse().unwrap();
-    //let mut egraphin = EGraph::new(ConstantFold {});
-    //eaphin.add_expr(&expr);
-   // egraphin.dot().to_png("/data/cchen/E-Brush/image/fooin.png").unwrap();
-   // println!("input node{}", egraphin.total_size());
-   // println!("input class{}", egraphin.number_of_classes());
-
+//    let mut egraphin = EGraph::new(ConstantFold {});
+    let mut egraphin = EGraph::new(());
+    egraphin.add_expr(&expr);
+    // egraphin.dot().to_png("/data/cchen/E-Brush/dot_graph/fooin.png").unwrap();
+    // egraphin.dot().to_pdf("/data/cchen/E-Brush/dot_graph/fooin.pdf").unwrap();
+    println!("input node{}", egraphin.total_size());
+    println!("input class{}", egraphin.number_of_classes());
+    egraphin.rebuild();
 
     // ruuner configure
-    let runner_iteration_limit = 10000000;
-    let egraph_node_limit = 25000000;
+    let runner_iteration_limit = 10;
+    let egraph_node_limit = 5000000000;
     let start = Instant::now();
-    let iterations = 10 as i32;
+    // let iterations = 0 as i32;
+    let iterations = 5 as i32;
     let runner = Runner::default()
         .with_explanations_enabled()
         .with_expr(&expr)
-        .with_time_limit(std::time::Duration::from_secs(300))
+       // .with_egraph(egraphin)
+        .with_time_limit(std::time::Duration::from_secs(100))
         .with_iter_limit(runner_iteration_limit)
         .with_node_limit(egraph_node_limit)
         .run(&make_rules());
-    let duration = start.elapsed();
+    let duration= start.elapsed();
     println!("Runner stopped: {:?}. Time take for runner: {:?}, Classes: {}, Nodes: {}, Size: {}\n\n",
             runner.stop_reason, duration, runner.egraph.number_of_classes(),
             runner.egraph.total_number_of_nodes(), runner.egraph.total_size());
     //let mut unique_solutions = HashSet::new();
-   // runner.egraph.dot().to_png("/data/cchen/E-Brush/image/process.png").unwrap();
+    //runner.egraph.dot().to_pdf("/data/cchen/E-Brush/dot_graph/fooegraph.pdf").unwrap();
+    // runner.egraph.dot().to_png("/data/cchen/E-Brush/image/process.png").unwrap();
     let mut results: BTreeMap<i32, RecExpr<Prop>> = BTreeMap::new();
     let mut res_cost: HashMap<i32, usize> = HashMap::new();
     let mut sym_cost_dict: BTreeMap<i32, f64> = BTreeMap::new();
@@ -65,17 +71,17 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     let mut extractor = Extractor1::new(&runner.egraph, egg::AstSize);
     let mut extractor1 = Extractor1::new(&runner.egraph, egg::AstDepth);
     let mut extractor2 = Extractor1::new(&runner.egraph, Mixcost);
-
+// 
     let (best_cost_base_0,best_base_0 )=extractor_base_0.find_best(root);
     let (best_cost_base_1,best_base_1 )=extractor_base_1.find_best(root);
 
     results.insert(0, best_base_0.clone());
     results.insert(1, best_base_1.clone()); 
 
-   // let (sym_cost0,input_para0) =xgboost(&(best_base_0.to_string()));
-  //  sym_cost_dict.insert(0,sym_cost0);
-   // let (sym_cost1,input_para1) =xgboost(&(best_base_1.to_string()));
-   // sym_cost_dict.insert(1,sym_cost1);
+//    let (sym_cost0,input_para0) =xgboost(&(best_base_0.to_string()));
+//    sym_cost_dict.insert(0,sym_cost0);
+//    let (sym_cost1,input_para1) =xgboost(&(best_base_1.to_string()));
+//    sym_cost_dict.insert(1,sym_cost1);
 
 
 
@@ -85,10 +91,10 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
 
  
     
-    //res_cost.insert(0,best_cost_base_0);    
+    res_cost.insert(0,best_cost_base_0);    
     
     
-   // res_cost.insert(1,best_cost_base_1);    
+   res_cost.insert(1,best_cost_base_1);    
 
     for i in 2..iterations*3/2+2 {        
         let (best_cost,best0 )=extractor.find_best_random(root);
@@ -120,33 +126,29 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     }
     for i in 4*iterations+2..11*iterations/2+2 {
         let (best_cost,best )=extractor2.find_best_random(root);
-        let ( sym_cost,input_para) =xgboost(&(best.to_string()));
+        //let ( sym_cost,input_para) =xgboost(&(best.to_string()));
         results.insert(i, best);
-        sym_cost_dict.insert(i,sym_cost);
+      //  sym_cost_dict.insert(i,sym_cost);
         //res_cost.insert(i,best_cost);
     }
     for i in 11*iterations/2+2..6*iterations+2 {
         let (best_cost,best )=extractor2.find_best(root);
-        let ( sym_cost,input_para) =xgboost(&(best.to_string()));
+       // let ( sym_cost,input_para) =xgboost(&(best.to_string()));
         results.insert(i, best);
-        sym_cost_dict.insert(i,sym_cost);
+      //  sym_cost_dict.insert(i,sym_cost);
         //res_cost.insert(i,best_cost);
     }
     
 
-    println!("sym_cost_dict");
-    for (key, value) in &sym_cost_dict {
-        
-        println!("Key: {}, Value: {}", key, value);
-    }
-
-
+//   version of regression
+//----------------------------------------------------------------------------------------
     let results_vec: Vec<(&i32, &RecExpr<Prop>)> = results.iter().collect();
     results_vec.par_iter().enumerate().for_each(|(count, (key, best))| {
         let result_string = best.to_string();
         let expr: RecExpr<Prop> = result_string.parse().unwrap();
         let mut egraphout = EGraph::new(ConstantFold {});
         egraphout.add_expr(&expr);
+        
         print!("count: {}, key: {}", count, key);
         let output_directory1 = "out_dot/";
         let output_file_name1 = format!("out_graph_dot{}.dot", count);
@@ -154,11 +156,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
         let _ = egraphout.dot().to_dot(output_file_path1);
     });
 
-    results_vec.par_iter().enumerate().for_each(|(count, (key, best))| {
-        let result_string = best.to_string();
 
-    
-    });
 
     let num = iterations * 6 + 2;
     let output_cmd = Command::new("python")
@@ -187,21 +185,24 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
         results_graph_info.insert(index, (density, edge_count));
     }
 
+
     for (key, rec_expr) in &results {
         let mut out_string= rec_expr.to_string();
         if let Some(&(graph_density, graph_edge)) = results_graph_info.get(key){
             let (sym_cost,input_para) =xgboost_new((&out_string),&graph_density,&graph_edge);
-            //let (sym_cost,input_para) =xgboost_((&out_string));
+           // let (sym_cost,input_para) =xgboost((&out_string));
             sym_cost_dict.insert(*key,sym_cost);
     }  
+  }
+    // for (key, rec_expr) in &results {
+    //     let mut out_string= rec_expr.to_string();
+    //         let (sym_cost,input_para) =xgboost((&out_string));
+    //         //let (sym_cost,input_para) =xgboost((&out_string));
+    //         sym_cost_dict.insert(*key,sym_cost);
+    //    // println!("Key: {}, RecExpr: {:?}", key, rec_expr);
+    // }
 
-       // println!("Key: {}, RecExpr: {:?}", key, rec_expr);
-    }
-
-    
-
-
-
+//----------------------------------------------------------------------------------------
    // let Some((density, edge_count)) = results.get(&desired_key)
 
 
@@ -252,7 +253,6 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     //     sym_cost_dict.insert(*key, sym_cost);
     // }
 
-    //non-par version
     
 
     
@@ -260,25 +260,27 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
    
 
 
-//     let mut min_key = 0; 
-//     let mut min_value = INFINITY as f64;
+    let mut min_key = 0; 
+    let mut min_value = INFINITY as f64;
 
-//     for (key, &value) in &sym_cost_dict {
-//          if value  < min_value { min_key = *key; min_value = value; } 
-//         } // min_key 和 min_value 分别为最小值对应的键和值
-//    //  println!("best_cost{}",min_value);
-//    let count =0;
-//    let output_directory = "test_data_beta_runner/";
-//    let output_file_name = format!("output_from_egg{}.txt",count); 
-//    let output_file_path = Path::new(output_directory).join(output_file_name);
-//    let output = results.get(&min_key).expect("Value not found");
-//    if let Ok(mut output_file) = File::create(output_file_path) {
-//            output_file.write_all((output.to_string()).as_bytes()).ok();
-//        }  
+    for (key, &value) in &sym_cost_dict {
+         if value  < min_value { min_key = *key; min_value = value; } 
+        } // min_key 和 min_value 
+   //  println!("best_cost{}",min_value);
+   let count =0;
+   let output_directory = "test_data_beta_runner/";
+   let output_file_name = format!("output_from_egg{}.txt",count); 
+   let output_file_path = Path::new(output_directory).join(output_file_name);
+   let output = results.get(&min_key).expect("Value not found");
+   if let Ok(mut output_file) = File::create(output_file_path) {
+           output_file.write_all((output.to_string()).as_bytes()).ok();
+       }  
     
     let mut key_value_pairs: Vec<(&i32, &f64)> = sym_cost_dict.iter().collect();
     key_value_pairs.sort_by(|&(_, value1), &(_, value2)| value1.partial_cmp(value2).unwrap());
-    let min_keys: Vec<&i32> = key_value_pairs.iter().take(30).map(|&(key, _)| key).collect();
+    //let min_keys: Vec<&i32> = key_value_pairs.iter().take(30).map(|&(key, _)| key).collect();
+    let min_keys: Vec<&i32> = key_value_pairs.iter().take(num as usize).map(|&(key, _)| key).collect();
+    // let min_keys: Vec<&i32> = key_value_pairs.iter().take(2).map(|&(key, _)| key).collect();
     println!("done");
 
    let mut count = 0;

@@ -3,7 +3,10 @@ use std::fs::File;
 use std::io::prelude::*;
 use rayon::prelude::*;
 use std::process;
+use std::env;
 
+use std::time::{Duration, Instant};
+use psutil::process::Process;
 struct CircuitParser {
     input_file_path: String,
     output_file_path: String,
@@ -21,7 +24,7 @@ impl CircuitParser {
         }
     }
 
-    fn parse_circuit(&mut self) -> String {
+    fn parse_circuit(&mut self, start_time: Instant, initial_memory_usage: u64) -> String {
         let mut file = File::open(&self.input_file_path).expect("Failed to open input file");
         let mut contents = String::new();
         file.read_to_string(&mut contents).expect("Failed to read input file");
@@ -51,7 +54,7 @@ impl CircuitParser {
                     let new_n_expr = parts[1].trim().trim_end_matches(";").to_string();
                     self.new_n_dict.insert(new_n_name, new_n_expr);
                 } else {
-                    output.push(self.replace_new_n(&current_line));
+                    output.push(self.replace_new_n(&current_line,start_time, initial_memory_usage));
                 }
                 current_line.clear();
             }
@@ -61,14 +64,14 @@ impl CircuitParser {
         output.insert(1, out_order.trim().to_string());
 
         let mut new_dict = HashMap::new();
-        for (new_n_name, new_n_expr) in &self.new_n_dict {
-            new_dict.insert(new_n_name.clone(), self.replace_new_n(new_n_expr));
+        for (new_n_name, new_n_expr) in std::mem::take(&mut self.new_n_dict) {
+            new_dict.insert(new_n_name.clone(), self.replace_new_n(&new_n_expr, start_time, initial_memory_usage));
         }
         self.new_n_dict = new_dict;
 
         //output = output.par_iter().map(|line| self.replace_new_n(line).trim_start().to_string()).collect();
         
-        output = output.iter().map(|line| self.replace_new_n(line).trim_start().to_string()).collect();
+        output = output.iter().map(|line| self.replace_new_n(line,start_time, initial_memory_usage).trim_start().to_string()).collect();
 
         output.par_iter_mut().skip(2).for_each(|expr| {
             let parts = expr.split('=').collect::<Vec<&str>>();
@@ -89,19 +92,40 @@ impl CircuitParser {
         output.join("\n")
     }
 
-    fn replace_new_n(&self, expr: &str) -> String {
+    fn replace_new_n(&mut self, expr: &str, start_time: Instant, initial_memory_usage: u64) -> String {
         let mut replaced_expr = expr.to_string();
         for (new_n_name, new_n_expr) in &self.new_n_dict {
             let tokens = new_n_expr.split_whitespace().count();
             if tokens == 1 {
                 replaced_expr = replaced_expr.replace(new_n_name, &format!("{}", new_n_expr));
-            }
-            else{
+            } else {
                 replaced_expr = replaced_expr.replace(new_n_name, &format!("({})", new_n_expr));
-
             }
             
+            // 检查超时时间
+            if start_time.elapsed().as_secs() >= 3600 {
+                println!("Timeout: Execution time exceeded 3600 seconds");
+                break;
+            }
+            
+            // 检查内存使用情况
+            let current_memory_usage = {
+                let process = Process::current().expect("Failed to get current process");
+                let memory_info = process.memory_info().expect("Failed to get memory info");
+                memory_info.rss() - initial_memory_usage
+            };
+    
+            let memory_limit = 32 * 1024 * 1024 * 1024; // 32GB
+            let print_memory_threshold = 8 * 1024 * 1024 * 1024; // 8GB
+            
+            if current_memory_usage >= memory_limit {
+                println!("Memoryout: 32GB: Execution memory exceeded 32GB, current: {} bytes", current_memory_usage);
+                break;
+            } else if current_memory_usage >= print_memory_threshold {
+                println!("Memory usage reached 8GB: {} bytes", current_memory_usage);
+            }
         }
+        
         replaced_expr
     }
 
@@ -111,12 +135,18 @@ impl CircuitParser {
     }
 
     fn process(&mut self) {
-        let mut parsed_content = self.parse_circuit();
+        let start_time = Instant::now();
+        let initial_memory_usage = {
+            let process = Process::current().expect("Failed to get current process");
+            let memory_info = process.memory_info().expect("Failed to get memory info");
+            memory_info.rss()
+        };
+        let mut parsed_content = self.parse_circuit(start_time.clone(),initial_memory_usage.clone());
         let mut last_parsed_content = String::new();
         let mut iterations = 0;
         while parsed_content != last_parsed_content && iterations < self.max_iterations {
             last_parsed_content = parsed_content.clone();
-            parsed_content = self.replace_new_n(&parsed_content);
+            parsed_content = self.replace_new_n(&parsed_content,start_time, initial_memory_usage);
             iterations += 1;
         }
 
@@ -165,6 +195,7 @@ fn read_original_circuit(file_path: &str) -> (String, Vec<String>) {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+
     // Add a new argument for max_iterations
     if args.len() < 4 {
         eprintln!("Usage: {} <input_file_path> <output_file_path> <concat_expr> <max_iterations>", args[0]);
@@ -193,3 +224,5 @@ fn main() {
         process::exit(1);
     });
 }
+
+

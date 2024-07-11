@@ -9,8 +9,8 @@ use crate::utils::{sym_eval::*};
 
 pub fn xgboost(input_string: &str) -> (f64, Vec<f32>) {
     // load model and predict
-    let bst = Booster::load("/data/cchen/E-Brush/e-rewriter/src/model/xgb_delay.model");
-    
+   // let bst = Booster::load("/data/cchen/E-Brush/e-rewriter/src/model/xgb_delay.model");
+    let bst = Booster::load("/data/cchen/E-Brush/e-rewriter/src/model/xgb_area.model");
     let operator_counts = count_operators(&input_string);
     let x1 = operator_counts.get("+").copied().unwrap_or(0);
     let x2 = operator_counts.get("!").copied().unwrap_or(0);
