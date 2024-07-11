@@ -2,7 +2,7 @@ import os
 import csv
 import re
 directory1 = input("input the directory name:")
-directory = input("file name:")
+directory = input("file nam:")
 output_directory = f"./analyze/{directory1}/" + directory
 if not os.path.exists(output_directory):
     os.makedirs(output_directory)

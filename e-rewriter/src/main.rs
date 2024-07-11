@@ -142,58 +142,58 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
 
 //   version of regression
 //----------------------------------------------------------------------------------------
-    let results_vec: Vec<(&i32, &RecExpr<Prop>)> = results.iter().collect();
-    results_vec.par_iter().enumerate().for_each(|(count, (key, best))| {
-        let result_string = best.to_string();
-        let expr: RecExpr<Prop> = result_string.parse().unwrap();
-        let mut egraphout = EGraph::new(ConstantFold {});
-        egraphout.add_expr(&expr);
+    // let results_vec: Vec<(&i32, &RecExpr<Prop>)> = results.iter().collect();
+    // results_vec.par_iter().enumerate().for_each(|(count, (key, best))| {
+    //     let result_string = best.to_string();
+    //     let expr: RecExpr<Prop> = result_string.parse().unwrap();
+    //     let mut egraphout = EGraph::new(ConstantFold {});
+    //     egraphout.add_expr(&expr);
         
-        print!("count: {}, key: {}", count, key);
-        let output_directory1 = "out_dot/";
-        let output_file_name1 = format!("out_graph_dot{}.dot", count);
-        let output_file_path1 = Path::new(output_directory1).join(output_file_name1);
-        let _ = egraphout.dot().to_dot(output_file_path1);
-    });
+    //     print!("count: {}, key: {}", count, key);
+    //     let output_directory1 = "out_dot/";
+    //     let output_file_name1 = format!("out_graph_dot{}.dot", count);
+    //     let output_file_path1 = Path::new(output_directory1).join(output_file_name1);
+    //     let _ = egraphout.dot().to_dot(output_file_path1);
+    // });
 
 
 
     let num = iterations * 6 + 2;
-    let output_cmd = Command::new("python")
-        .arg("graph_info.py")
-        .arg(num.to_string())
-        .output()
-        .expect("Failed to execute command");
-    if output_cmd.status.success() {
-        let stdout = String::from_utf8_lossy(&output_cmd.stdout);
-        println!("Command executed successfully. Output:\n{}", stdout);
-    } else {
-        let stderr = String::from_utf8_lossy(&output_cmd.stderr);
-        println!("Command failed. Error:\n{}", stderr);
-    }
+//     let output_cmd = Command::new("python")
+//         .arg("graph_info.py")
+//         .arg(num.to_string())
+//         .output()
+//         .expect("Failed to execute command");
+//     if output_cmd.status.success() {
+//         let stdout = String::from_utf8_lossy(&output_cmd.stdout);
+//         println!("Command executed successfully. Output:\n{}", stdout);
+//     } else {
+//         let stderr = String::from_utf8_lossy(&output_cmd.stderr);
+//         println!("Command failed. Error:\n{}", stderr);
+//     }
     
-    let mut results_graph_info: BTreeMap<i32, (f32, f32)> = BTreeMap::new();
+//     let mut results_graph_info: BTreeMap<i32, (f32, f32)> = BTreeMap::new();
 
-    let file = File::open("graph_info/out_graph_info.csv")?;
-    let mut reader = ReaderBuilder::new().from_reader(file);
+//     let file = File::open("graph_info/out_graph_info.csv")?;
+//     let mut reader = ReaderBuilder::new().from_reader(file);
 
-    for result in reader.records() {
-        let record = result?;
-        let index = record.get(0).unwrap().parse::<i32>()?;
-        let density = record.get(1).unwrap().parse::<f32>()?;
-        let edge_count = record.get(2).unwrap().parse::<f32>()?;
-        results_graph_info.insert(index, (density, edge_count));
-    }
+//     for result in reader.records() {
+//         let record = result?;
+//         let index = record.get(0).unwrap().parse::<i32>()?;
+//         let density = record.get(1).unwrap().parse::<f32>()?;
+//         let edge_count = record.get(2).unwrap().parse::<f32>()?;
+//         results_graph_info.insert(index, (density, edge_count));
+//     }
 
 
-    for (key, rec_expr) in &results {
-        let mut out_string= rec_expr.to_string();
-        if let Some(&(graph_density, graph_edge)) = results_graph_info.get(key){
-            let (sym_cost,input_para) =xgboost_new((&out_string),&graph_density,&graph_edge);
-           // let (sym_cost,input_para) =xgboost((&out_string));
-            sym_cost_dict.insert(*key,sym_cost);
-    }  
-  }
+//     for (key, rec_expr) in &results {
+//         let mut out_string= rec_expr.to_string();
+//         if let Some(&(graph_density, graph_edge)) = results_graph_info.get(key){
+//             let (sym_cost,input_para) =xgboost_new((&out_string),&graph_density,&graph_edge);
+//            // let (sym_cost,input_para) =xgboost((&out_string));
+//             sym_cost_dict.insert(*key,sym_cost);
+//     }  
+//   }
     // for (key, rec_expr) in &results {
     //     let mut out_string= rec_expr.to_string();
     //         let (sym_cost,input_para) =xgboost((&out_string));
