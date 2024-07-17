@@ -44,7 +44,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     let egraph_node_limit = 5000000000;
     let start = Instant::now();
     // let iterations = 0 as i32;
-    let iterations = 5 as i32;
+    let iterations = 20 as i32;
     let runner = Runner::default()
         .with_explanations_enabled()
         .with_expr(&expr)

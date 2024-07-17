@@ -302,7 +302,7 @@ if __name__ == "__main__":
     #iterations =60
     #num =iterations*6+2
 
-    num = 32
+    num = 122
     max_processes = 64  # 设置最大进程数
     data = data  # 按需设置 data 的值
     multiple_output_flag = True  # 按需设置 multiple_output_flag 的值
