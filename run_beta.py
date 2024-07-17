@@ -268,7 +268,7 @@ if __name__ == "__main__":
     # if execution_time > 300:
     #    print("Ending. Execution time exceeded 300 seconds.")
     #    sys.exit()  # 终止Python程序
-    print("eqn to sexpr time:", execution_time, "seconds.")    
+    #print("eqn to sexpr time:", execution_time, "seconds.")    
         
 
     # # '''
@@ -302,20 +302,16 @@ if __name__ == "__main__":
     #iterations =60
     #num =iterations*6+2
 
-    num = 1
+    num = 32
     max_processes = 64  # 设置最大进程数
     data = data  # 按需设置 data 的值
     multiple_output_flag = True  # 按需设置 multiple_output_flag 的值
 
-    # with concurrent.futures.ProcessPoolExecutor(max_workers=max_processes) as executor:
-    #     futures = []
-    #     for i in range(num):
-    #         start_time = time.time() # 记录开始时间
-    #         future = executor.submit(convert_to_abc_eqn, data, i, None, multiple_output_flag)
-    #         futures.append(future)
-    #         end_time = time.time() # 记录结束时间
-    #         execution_time = end_time - start_time # 计算时间差
-    #         print("sexpr----eqn time cost:", execution_time, "s")    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_processes) as executor:
+        futures = []
+        for i in range(num):
+            future = executor.submit(convert_to_abc_eqn, data, i, None, multiple_output_flag)
+            futures.append(future)
 
 
     #p-------------
@@ -330,32 +326,34 @@ if __name__ == "__main__":
 
 
     # print("sexpr to eqn time cost:", execution_time, "s")
-    def run_with_timeout(func, args, timeout):
-        # 创建子进程并运行函数
-        process = multiprocessing.Process(target=func, args=args)
-        process.start()
+
+
+    # def run_with_timeout(func, args, timeout):
+    #     # 创建子进程并运行函数
+    #     process = multiprocessing.Process(target=func, args=args)
+    #     process.start()
     
-        # 等待函数执行完毕或超时
-        process.join(timeout)
+    #     # 等待函数执行完毕或超时
+    #     process.join(timeout)
     
-        # 如果函数仍在运行，则终止子进程
-        if process.is_alive():
-            process.terminate()
-            process.join()
+    #     # 如果函数仍在运行，则终止子进程
+    #     if process.is_alive():
+    #         process.terminate()
+    #         process.join()
     
-    start_time = time.time()  # 记录开始时间
+    # start_time = time.time()  # 记录开始时间
     
-    # 使用run_with_timeout函数运行convert_to_abc_eqn函数，并设置超时时间为300秒
-    run_with_timeout(convert_to_abc_eqn, (data, 0, None, multiple_output_flag), 300)
+    # # 使用run_with_timeout函数运行convert_to_abc_eqn函数，并设置超时时间为300秒
+    # run_with_timeout(convert_to_abc_eqn, (data, 0, None, multiple_output_flag), 300)
     
-    end_time = time.time()  # 记录结束时间
-    execution_time = end_time - start_time  # 计算时间差
+    # end_time = time.time()  # 记录结束时间
+    # execution_time = end_time - start_time  # 计算时间差
     
-    if execution_time > 300:
-        print("结束。执行时间超过300秒。")
-        sys.exit()  # 终止Python程序
+    # if execution_time > 300:
+    #     print("结束。执行时间超过300秒。")
+    #     sys.exit()  # 终止Python程序
     
-    print("sexpr to eqn:", execution_time, "秒")
+    # print("sexpr to eqn:", execution_time, "秒")
   
     #python - future - parallel
     # def process_iteration(i):

@@ -40,7 +40,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     egraphin.rebuild();
 
     // ruuner configure
-    let runner_iteration_limit = 10;
+    let runner_iteration_limit = 20;
     let egraph_node_limit = 5000000000;
     let start = Instant::now();
     // let iterations = 0 as i32;
@@ -62,7 +62,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     // runner.egraph.dot().to_png("/data/cchen/E-Brush/image/process.png").unwrap();
     let mut results: BTreeMap<i32, RecExpr<Prop>> = BTreeMap::new();
     let mut res_cost: HashMap<i32, usize> = HashMap::new();
-    let mut sym_cost_dict: BTreeMap<i32, f64> = BTreeMap::new();
+   // let mut sym_cost_dict: BTreeMap<i32, f64> = BTreeMap::new();
 
     let root = runner.roots[0];
     
@@ -263,35 +263,37 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     let mut min_key = 0; 
     let mut min_value = INFINITY as f64;
 
-    for (key, &value) in &sym_cost_dict {
-         if value  < min_value { min_key = *key; min_value = value; } 
-        } // min_key 和 min_value 
+    // for (key, &value) in &sym_cost_dict {
+    //      if value  < min_value { min_key = *key; min_value = value; } 
+    //     } // min_key 和 min_value 
    //  println!("best_cost{}",min_value);
-   let count =0;
-   let output_directory = "test_data_beta_runner/";
-   let output_file_name = format!("output_from_egg{}.txt",count); 
-   let output_file_path = Path::new(output_directory).join(output_file_name);
-   let output = results.get(&min_key).expect("Value not found");
-   if let Ok(mut output_file) = File::create(output_file_path) {
-           output_file.write_all((output.to_string()).as_bytes()).ok();
-       }  
+  // let count =0;
+  //  let output_directory = "test_data_beta_runner/";
+  //  let output_file_name = format!("output_from_egg{}.txt",count); 
+  //  let output_file_path = Path::new(output_directory).join(output_file_name);
+  //  let output = results.get(&min_key).expect("Value not found");
+  //  if let Ok(mut output_file) = File::create(output_file_path) {
+  //          output_file.write_all((output.to_string()).as_bytes()).ok();
+  //      }  
     
-    let mut key_value_pairs: Vec<(&i32, &f64)> = sym_cost_dict.iter().collect();
-    key_value_pairs.sort_by(|&(_, value1), &(_, value2)| value1.partial_cmp(value2).unwrap());
-    //let min_keys: Vec<&i32> = key_value_pairs.iter().take(30).map(|&(key, _)| key).collect();
-    let min_keys: Vec<&i32> = key_value_pairs.iter().take(num as usize).map(|&(key, _)| key).collect();
+    // key_value_pairs.sort_by(|&(_, value1), &(_, value2)| value1.partial_cmp(value2).unwrap());
+   //let min_keys: Vec<&i32> = key_value_pairs.iter().take(30).map(|&(key, _)| key).collect();
+    //let min_keys: Vec<&i32> = results.iter().take(num as usize).map(|&(key, _)| key).collect();
     // let min_keys: Vec<&i32> = key_value_pairs.iter().take(2).map(|&(key, _)| key).collect();
     println!("done");
 
    let mut count = 0;
    let output_directory = "test_data_beta_runner/";
+   let min_keys: Vec<&i32> = results.iter().take(num as usize).map(|(key, _)| key).collect();
+
    for min_key in min_keys.iter() {
-       let output = results
-           .get(min_key)
+       let output = results.get(min_key)
            .map(|result| result.to_string())
            .unwrap_or_default();
+   
        let output_file_name = format!("output_from_egg{}.txt", count);
        let output_file_path = Path::new(output_directory).join(output_file_name);
+   
        if let Ok(mut output_file) = File::create(output_file_path) {
            output_file.write_all(output.as_bytes()).ok();
        }
