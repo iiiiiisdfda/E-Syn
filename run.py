@@ -229,7 +229,7 @@ if __name__ == "__main__":
     #############################################################################
     '''
     # run egg
-    command = "e-rewriter/target/release/e-rewriter test_data/sexpr_for_egg.txt test_data/output_from_egg.txt"
+    command = "e-rewriter/target/release/e-rewriter test_data/sexpr_for_egg.txt test_data/output_from_egg.txt test_data"
     os.system(command)
     
     '''
