@@ -1,11 +1,11 @@
-attrs==23.1.0
+attrs
 bidict==0.22.1
 funcy==1.18
 mpmath==1.3.0
 parsimonious==0.8.1
 ply==3.11
-py-aiger==6.2.1
-py-aiger-bv==4.7.6
+py-aiger
+py-aiger-bv
 py-aiger-cnf==5.0.7
 pycosat==0.6.3
 pyrsistent==0.19.3
