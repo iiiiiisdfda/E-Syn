@@ -261,7 +261,7 @@ if __name__ == "__main__":
     # # #############################################################################
     # # '''
     # # # run egg 
-    os.system("e-rewriter/target/release/e-rewriter test_data_beta_runner/sexpr_for_egg.txt test_data_beta_runner/output_from_egg.txt")
+    os.system("e-rewriter/target/release/e-rewriter test_data_beta_runner/sexpr_for_egg.txt test_data_beta_runner/output_from_egg.txt test_data_beta_runner/split_concat.txt")
     
     '''
     #############################################################################
