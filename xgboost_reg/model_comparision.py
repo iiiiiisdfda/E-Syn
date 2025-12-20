@@ -151,7 +151,7 @@ def main():
     print(f"\nFeature shape: {X.shape}")
     print(f"Number of features: {X.shape[1]}")
     print(f"Target shape: {y.shape}")
-    print(f"Using {X.shape[0]} samples for 10-fold cross-validation")
+    print(f"Using {X.shape[0]} test samples for evaluation")
     
     # 定义要对比的模型
     models = {}
@@ -159,13 +159,14 @@ def main():
     
     print("\n" + "="*80)
     print("Model Comparison: XGBoost vs MLP vs Random Forest")
+    print("Loading pre-trained models and evaluating on test set")
     print("="*80)
     
     # 检测是否有 GPU
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     
-    # 1. XGBoost - 加载预训练模型并使用交叉验证评估
+    # 1. XGBoost - 加载预训练模型并在测试集上评估
     print("\n[1/3] XGBoost")
     xgb_model_path = 'xgb_best_model.model'
     if os.path.exists(xgb_model_path):
@@ -173,7 +174,15 @@ def main():
         models['XGBoost'] = xgb.XGBRegressor()
         models['XGBoost'].load_model(xgb_model_path)
         print("  ✓ Model loaded successfully")
-        results['XGBoost'] = cross_val_evaluate_sklearn(models['XGBoost'], X, y, "XGBoost", n_folds=10)
+        print("  Evaluating on test set...")
+        y_pred = models['XGBoost'].predict(X)
+        results['XGBoost'] = {
+            'MAE': mean_absolute_error(y, y_pred),
+            'MAPE': mape(y, y_pred),
+            'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+            'R²': r2_score(y, y_pred),
+            'RRSE': rrse(y, y_pred),
+        }
     else:
         print(f"  ✗ Error: Pre-trained model not found at {xgb_model_path}")
         print("  Please train the model first using train.py")
@@ -209,7 +218,15 @@ def main():
             mlp_scaler = checkpoint.get('scaler', StandardScaler())
             models['MLP'] = MLPWrapper(mlp_model, mlp_scaler, device=device)
             print("  ✓ Model loaded successfully")
-            results['MLP'] = cross_val_evaluate_mlp(models['MLP'], X, y, "MLP", n_folds=10)
+            print("  Evaluating on test set...")
+            y_pred = models['MLP'].predict(X)
+            results['MLP'] = {
+                'MAE': mean_absolute_error(y, y_pred),
+                'MAPE': mape(y, y_pred),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                'R²': r2_score(y, y_pred),
+                'RRSE': rrse(y, y_pred),
+            }
         except Exception as e:
             print(f"  ✗ Error loading MLP model: {e}")
             import traceback
@@ -230,7 +247,15 @@ def main():
             models['Random Forest'] = checkpoint['model']
             print("  ✓ Model loaded successfully")
             print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
-            results['Random Forest'] = cross_val_evaluate_sklearn(models['Random Forest'], X, y, "Random Forest", n_folds=10)
+            print("  Evaluating on test set...")
+            y_pred = models['Random Forest'].predict(X)
+            results['Random Forest'] = {
+                'MAE': mean_absolute_error(y, y_pred),
+                'MAPE': mape(y, y_pred),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                'R²': r2_score(y, y_pred),
+                'RRSE': rrse(y, y_pred),
+            }
         except Exception as e:
             print(f"  ✗ Error loading Random Forest model: {e}")
             import traceback
@@ -243,55 +268,28 @@ def main():
     
     # 打印对比结果
     print("\n" + "="*80)
-    print("Model Comparison Results (10-Fold Cross-Validation)")
+    print("Model Comparison Results (Test Set Evaluation)")
     print("="*80)
     
-    # 创建结果 DataFrame（只保留平均值，不包含标准差）
-    results_summary = {}
-    for model_name, metrics in results.items():
-        results_summary[model_name] = {
-            'MAE': metrics['MAE'],
-            'MAPE': metrics['MAPE'],
-            'RRSE': metrics['RRSE'],
-            'R²': metrics['R²'],
-            'RMSE': metrics['RMSE'],
-        }
-    
-    comparison_df = pd.DataFrame(results_summary).T
+    # 创建结果 DataFrame
+    comparison_df = pd.DataFrame(results).T
     comparison_df = comparison_df.sort_values('MAPE')  # 按 MAPE 排序
     
-    # 格式化输出（带标准差）
+    # 格式化输出
     print(f"\n{'Model':<20} {'MAE':<15} {'MAPE (%)':<15} {'RRSE':<15} {'R²':<15} {'RMSE':<15}")
     print("-" * 100)
     
     for model_name in comparison_df.index:
-        row = comparison_df.loc[model_name]
         metrics = results[model_name]
         print(f"{model_name:<20} "
-              f"{metrics['MAE']:>6.2f}±{metrics['MAE_std']:>5.2f}  "
-              f"{metrics['MAPE']:>6.2f}±{metrics['MAPE_std']:>5.2f}  "
-              f"{metrics['RRSE']:>6.4f}±{metrics['RRSE_std']:>6.4f}  "
-              f"{metrics['R²']:>6.4f}±{metrics['R²_std']:>6.4f}  "
-              f"{metrics['RMSE']:>6.2f}±{metrics['RMSE_std']:>5.2f}")
+              f"{metrics['MAE']:>6.2f}      "
+              f"{metrics['MAPE']:>6.2f}      "
+              f"{metrics['RRSE']:>6.4f}      "
+              f"{metrics['R²']:>6.4f}      "
+              f"{metrics['RMSE']:>6.2f}")
     
-    # 保存结果到 CSV（包含平均值和标准差）
-    results_for_csv = {}
-    for model_name, metrics in results.items():
-        results_for_csv[model_name] = {
-            'MAE_mean': metrics['MAE'],
-            'MAE_std': metrics['MAE_std'],
-            'MAPE_mean': metrics['MAPE'],
-            'MAPE_std': metrics['MAPE_std'],
-            'RRSE_mean': metrics['RRSE'],
-            'RRSE_std': metrics['RRSE_std'],
-            'R²_mean': metrics['R²'],
-            'R²_std': metrics['R²_std'],
-            'RMSE_mean': metrics['RMSE'],
-            'RMSE_std': metrics['RMSE_std'],
-        }
-    
-    comparison_df_full = pd.DataFrame(results_for_csv).T
-    comparison_df_full.to_csv('model_comparison_results.csv')
+    # 保存结果到 CSV
+    comparison_df.to_csv('model_comparison_results.csv')
     print(f"\nResults saved to 'model_comparison_results.csv'")
     
     # 找出最佳模型
