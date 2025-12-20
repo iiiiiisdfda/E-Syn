@@ -28,8 +28,15 @@ class CircuitParser:
                 elif current_line_stripped.startswith("OUTORDER"):
                     out_order += current_line
                 elif current_line_stripped.startswith("new_n"):
-                    new_n_name, new_n_expr = current_line.split(" = ")
-                    self.new_n_dict[new_n_name.strip()] = new_n_expr.strip(";")
+                    # Use split with maxsplit=1 to handle cases where expression might contain " = "
+                    parts = current_line.split(" = ", 1)
+                    if len(parts) == 2:
+                        new_n_name = parts[0].strip()
+                        new_n_expr = parts[1].strip().rstrip(";")
+                        self.new_n_dict[new_n_name] = new_n_expr
+                    else:
+                        # If parsing fails, skip this line (shouldn't happen in valid eqn files)
+                        print(f"Warning: Failed to parse new_n definition: {current_line_stripped}")
                 else:
                     # 先保存输出节点，稍后处理
                     output.append(current_line)
@@ -56,7 +63,8 @@ class CircuitParser:
         # 最后替换输出表达式中的中间节点
         output = [self.replace_new_n(line).lstrip() for line in output ]
         
-        output[2:] = [f"{expr.split('=')[0]} = ({expr.split('=')[1].replace(';', '')});" for expr in output[2:]]
+        # Use split with maxsplit=1 to handle cases where expression might contain '='
+        output[2:] = [self._format_output_line(expr) for expr in output[2:]]
         
         # for `!` replace to `! `
         output[2:] = [expr.replace("!", "! ") for expr in output[2:]]
@@ -78,10 +86,17 @@ class CircuitParser:
 
     def _replace_other_nodes(self, expr, exclude_key):
         """替换表达式中的其他中间节点引用（排除指定的键）"""
-        for key in self.new_n_dict:
-            if key != exclude_key and key in expr:
-                # 使用正则表达式确保只替换完整的节点名
-                pattern = r'\b' + re.escape(key) + r'\b'
+        # Sort keys by length (longest first) to avoid partial matches
+        # e.g., replace "new_n10_" before "new_n1_" to avoid matching part of "new_n10_"
+        sorted_keys = sorted([k for k in self.new_n_dict.keys() if k != exclude_key], 
+                              key=len, reverse=True)
+        
+        for key in sorted_keys:
+            if key in expr:
+                # Use a pattern that matches the node name as a whole word
+                # Since node names may end with '_', we need to match word boundaries correctly
+                # Pattern: word boundary or start of string, then escaped key, then word boundary or end of string or non-word char
+                pattern = r'(?<!\w)' + re.escape(key) + r'(?!\w)'
                 expr = re.sub(pattern, "(" + self.new_n_dict[key] + ")", expr)
         return expr
     
@@ -91,13 +106,19 @@ class CircuitParser:
         iteration = 0
         changed = True
         
+        # Sort keys by length (longest first) to avoid partial matches
+        # e.g., replace "new_n10_" before "new_n1_" to avoid matching part of "new_n10_"
+        sorted_keys = sorted(self.new_n_dict.keys(), key=len, reverse=True)
+        
         while changed and iteration < max_iterations:
             changed = False
             iteration += 1
-            for key in self.new_n_dict:
+            for key in sorted_keys:
                 if key in expr:
-                    # 使用正则表达式确保只替换完整的节点名（避免部分匹配）
-                    pattern = r'\b' + re.escape(key) + r'\b'
+                    # Use a pattern that matches the node name as a whole word
+                    # Since node names may end with '_', we need to match word boundaries correctly
+                    # Pattern: negative lookbehind for word char, then escaped key, then negative lookahead for word char
+                    pattern = r'(?<!\w)' + re.escape(key) + r'(?!\w)'
                     new_expr = re.sub(pattern, "(" + self.new_n_dict[key] + ")", expr)
                     if new_expr != expr:
                         expr = new_expr
@@ -108,6 +129,18 @@ class CircuitParser:
             print(f"Warning: Maximum iterations ({max_iterations}) reached in replace_new_n. Some nodes may not be fully expanded.")
         
         return expr
+    
+    def _format_output_line(self, expr):
+        """格式化输出行，处理可能包含多个'='的情况"""
+        # Use split with maxsplit=1 to handle cases where expression might contain '='
+        parts = expr.split('=', 1)
+        if len(parts) == 2:
+            expr_name = parts[0].strip()
+            expr_value = parts[1].strip().rstrip(';')
+            return f"{expr_name} = ({expr_value});"
+        else:
+            # If no '=' found, return as is (shouldn't happen in valid eqn files)
+            return expr
 
     def write_to_file(self, content):
         with open(self.output_file_path, 'w') as f:
