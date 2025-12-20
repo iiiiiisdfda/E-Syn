@@ -18,8 +18,11 @@ def rrse(y_true, y_pred):
 def r(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
 
-df = pd.read_csv('/data/guangyuh/coding_env/E-Brush/xgboost_reg/collect_dataset/fuzz_circuit_analysis_merge_size_51000_23_10_26.csv')
-X = df.iloc[:, :8].values
+df = pd.read_csv('../sym_reg/10000.csv')
+# 排除最后3列（power, area, delay），使用前面的列作为特征
+X = df.iloc[:, :-3].values
+# 保存特征名称用于后续绘图
+feature_names = df.columns[:-3].tolist()
 #y = ( 0.4 * df['area'] + 0.6 * df['delay']).values
 #y = df['delay'].values
 y = df['area'].values
@@ -36,8 +39,8 @@ params = {
     'n_estimators': [100, 160, 200],
     'objective': ['reg:gamma'],
     'booster': ['gbtree'],
-    'tree_method': ['gpu_hist'],
-    'predictor': ['gpu_predictor'],
+    'tree_method': ['hist'],  # 使用 hist 而不是 gpu_hist（已弃用）
+    'device': ['cuda'],  # 新版本使用 device 参数
     'n_jobs': [-1],
     'seed': [123]
 }
@@ -65,13 +68,13 @@ result = permutation_importance(
 
 # Sorting importances
 sorted_importances_idx = result.importances_mean.argsort()
-#feature_names = list(df.columns)
-#df_columns_sorted = [feature_names[i] for i in sorted_importances_idx]
+# 使用之前保存的特征名称
+df_columns_sorted = [feature_names[i] for i in sorted_importances_idx]
 
 # Creating DataFrame for plotting
 importances = pd.DataFrame(
     result.importances[sorted_importances_idx].T,
-    columns=X.columns[sorted_importances_idx],
+    columns=df_columns_sorted,
 )
 
 # Plotting the permutation importances
@@ -97,8 +100,14 @@ print("Coeff Determination (R^2):", metrics.r2_score(y_test, y_pred))
 print("Mean Absolute Error (MAE):", metrics.mean_absolute_error(y_test, y_pred))
 print("RMSE (Root Mean Squared Error):", np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
 
+# 保存 XGBoost 模型文件（用于 Python 加载）
+model_full.save_model('xgb_best_model.model')
+print("XGBoost model saved to 'xgb_best_model.model'")
+
+# 导出为 Rust 代码（用于 Rust 项目）
 code = m2c.export_to_rust(model_full)
 
 # write code in model.rs
 with open('model.rs', 'w') as f:
     f.write(code)
+print("Rust code exported to 'model.rs'")

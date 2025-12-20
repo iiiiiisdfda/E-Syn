@@ -3,6 +3,7 @@ import sys
 import pandas as pd
 import re
 from tqdm import tqdm
+import concurrent.futures
 
 # Tool paths - modify these according to your environment
 ABC_PATH = "../abc/abc"
@@ -12,36 +13,53 @@ AIGFUZZ_PATH = "../sym_reg/aiger_tool_util/aigfuzz"
 # The current network is not in a topo order (run "topo").?
 
 
-def run_aigfuzz(file_count):
+def run_aigfuzz_parallel(i):
+    """并行处理单个电路的生成"""
+    os.system(f"{AIGFUZZ_PATH} -c -s > aigfuzz/simple_circuit_{i}.aig 2>&1")
+    os.system(
+        f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\" 2>&1")
+
+def run_aigfuzz(file_count, max_workers=None):
     # check aigfuzz/ is esist, if not, create it
     if not os.path.exists("aigfuzz"): os.mkdir("aigfuzz")
-    for i in tqdm(range(file_count), desc='Run circuit generator'):
-        os.system(f"{AIGFUZZ_PATH} -c -s > aigfuzz/simple_circuit_{i}.aig")
-        os.system(
-            f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
-        
-        '''
-        if i%50 == 0:
-            os.system(f"{AIGFUZZ_PATH} -c -l > aigfuzz/simple_circuit_{i}.aig")
-            os.system(
-                f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
-        else:
-            os.system(f"{AIGFUZZ_PATH} -c -s > aigfuzz/simple_circuit_{i}.aig")
-            os.system(
-                f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
-        '''
+    if max_workers is None:
+        max_workers = min(64, os.cpu_count() or 1)
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        list(tqdm(
+            executor.map(run_aigfuzz_parallel, range(file_count)),
+            total=file_count,
+            desc='Run circuit generator'
+        ))
 
-def load_circuits(file_count):
-    for i in tqdm(range(file_count), desc='Loding circuits and convert to eqn'):
-        os.system(
-            f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; write_eqn aigfuzz/simple_circuit_{i}.eqn\"")
-        os.system(
-            f"{AIGTOAIG_PATH} aigfuzz/simple_circuit_{i}.aig aigfuzz/simple_circuit_{i}.aag")
+def load_circuits_parallel(i):
+    """并行处理单个电路的加载和转换"""
+    os.system(
+        f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; write_eqn aigfuzz/simple_circuit_{i}.eqn\" 2>&1")
+    os.system(
+        f"{AIGTOAIG_PATH} aigfuzz/simple_circuit_{i}.aig aigfuzz/simple_circuit_{i}.aag 2>&1")
+
+def load_circuits(file_count, max_workers=None):
+    if max_workers is None:
+        max_workers = min(64, os.cpu_count() or 1)
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        list(tqdm(
+            executor.map(load_circuits_parallel, range(file_count)),
+            total=file_count,
+            desc='Loading circuits and convert to eqn'
+        ))
 
 
-def process_circuits(file_count):
-    for i in tqdm(range(file_count), desc='Processing circuits for analyzer'):
-        print(f"processing No.{i} circuit")
+def process_circuits_parallel(i):
+    """并行处理单个电路的分析"""
+    # 在子进程中导入模块
+    import sys
+    sys.path.append("..")
+    import run
+    from CircuitParser import CircuitParser
+    
+    try:
         parser = CircuitParser(
             f"aigfuzz/simple_circuit_{i}.eqn", f"aigfuzz/simple_circuit_{i}_processed.eqn")
         parser.process()
@@ -50,13 +68,37 @@ def process_circuits(file_count):
         _ = run.conver_to_sexpr(
             data, multiple_output=True, output_file_path=f"aigfuzz/simple_circuit_{i}.sexpr")
         os.system(
-            f"analyzer/target/release/analyzer aigfuzz/simple_circuit_{i}.sexpr {i} > aigfuzz/simple_circuit_{i}.data")
+            f"analyzer/target/release/analyzer aigfuzz/simple_circuit_{i}.sexpr {i} > aigfuzz/simple_circuit_{i}.data 2>&1")
+    except Exception as e:
+        print(f"Error processing circuit {i}: {e}")
+
+def process_circuits(file_count, max_workers=None):
+    if max_workers is None:
+        max_workers = min(64, os.cpu_count() or 1)
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        list(tqdm(
+            executor.map(process_circuits_parallel, range(file_count)),
+            total=file_count,
+            desc='Processing circuits for analyzer'
+        ))
 
 
-def run_abc(file_count):
-    for i in tqdm(range(file_count), desc='Running abc to extract stats'):
-        os.system(
-            f"{ABC_PATH} -c \"read_eqn aigfuzz/simple_circuit_{i}_processed.eqn; strash; dch -f; print_stats -p; read_lib ../asap7_clean.lib ; map ; topo; upsize; dnsize; stime; \" > aigfuzz/simple_circuit_{i}.stats")
+def run_abc_parallel(i):
+    """并行处理单个电路的 ABC 统计提取"""
+    os.system(
+        f"{ABC_PATH} -c \"read_eqn aigfuzz/simple_circuit_{i}_processed.eqn; strash; dch -f; print_stats -p; read_lib ../asap7_clean.lib ; map ; topo; upsize; dnsize; stime; \" > aigfuzz/simple_circuit_{i}.stats 2>&1")
+
+def run_abc(file_count, max_workers=None):
+    if max_workers is None:
+        max_workers = min(64, os.cpu_count() or 1)
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        list(tqdm(
+            executor.map(run_abc_parallel, range(file_count)),
+            total=file_count,
+            desc='Running abc to extract stats'
+        ))
 
 
 def parse_data(file_count):
@@ -106,10 +148,30 @@ if __name__ == "__main__":
     import run 
     import run_beta
     from CircuitParser import CircuitParser
+    
+    # 设置全局变量，以便子进程可以访问
+    globals()['run'] = run
+    globals()['CircuitParser'] = CircuitParser
+    
     print(run.__file__)
-    file_count = 20
-    run_aigfuzz(file_count)
-    load_circuits(file_count)
-    process_circuits(file_count)
-    run_abc(file_count)
+    
+    # 可以通过命令行参数设置并行度，默认使用 CPU 核心数
+    import argparse
+    parser = argparse.ArgumentParser(description='Collect circuit data with parallel processing')
+    parser.add_argument('--file_count', type=int, default=1000, help='Number of circuits to process')
+    parser.add_argument('--max_workers', type=int, default=None, help='Maximum number of parallel workers (default: CPU count)')
+    args = parser.parse_args()
+    
+    file_count = args.file_count
+    max_workers = args.max_workers
+    
+    if max_workers is None:
+        max_workers = min(64, os.cpu_count() or 1)
+    
+    print(f"Processing {file_count} circuits with {max_workers} workers")
+    
+    run_aigfuzz(file_count, max_workers=max_workers)
+    load_circuits(file_count, max_workers=max_workers)
+    process_circuits(file_count, max_workers=max_workers)
+    run_abc(file_count, max_workers=max_workers)
     parse_data(file_count)
