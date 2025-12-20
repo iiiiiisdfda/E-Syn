@@ -4,6 +4,11 @@ import pandas as pd
 import re
 from tqdm import tqdm
 
+# Tool paths - modify these according to your environment
+ABC_PATH = "../abc/abc"
+AIGTOAIG_PATH = "../sym_reg/aiger_tool_util/aigtoaig"
+AIGFUZZ_PATH = "../sym_reg/aiger_tool_util/aigfuzz"
+
 # The current network is not in a topo order (run "topo").?
 
 
@@ -11,27 +16,27 @@ def run_aigfuzz(file_count):
     # check aigfuzz/ is esist, if not, create it
     if not os.path.exists("aigfuzz"): os.mkdir("aigfuzz")
     for i in tqdm(range(file_count), desc='Run circuit generator'):
-        os.system(f"aigfuzz -c -s > aigfuzz/simple_circuit_{i}.aig")
+        os.system(f"{AIGFUZZ_PATH} -c -s > aigfuzz/simple_circuit_{i}.aig")
         os.system(
-            f"abc -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
+            f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
         
         '''
         if i%50 == 0:
-            os.system(f"aigfuzz -c -l > aigfuzz/simple_circuit_{i}.aig")
+            os.system(f"{AIGFUZZ_PATH} -c -l > aigfuzz/simple_circuit_{i}.aig")
             os.system(
-                f"abc -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
+                f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
         else:
-            os.system(f"aigfuzz -c -s > aigfuzz/simple_circuit_{i}.aig")
+            os.system(f"{AIGFUZZ_PATH} -c -s > aigfuzz/simple_circuit_{i}.aig")
             os.system(
-                f"abc -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
+                f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; trim ; write_aiger aigfuzz/simple_circuit_{i}.aig\"")
         '''
 
 def load_circuits(file_count):
     for i in tqdm(range(file_count), desc='Loding circuits and convert to eqn'):
         os.system(
-            f"abc -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; write_eqn aigfuzz/simple_circuit_{i}.eqn\"")
+            f"{ABC_PATH} -c \"read_aiger aigfuzz/simple_circuit_{i}.aig; write_eqn aigfuzz/simple_circuit_{i}.eqn\"")
         os.system(
-            f"aigtoaig aigfuzz/simple_circuit_{i}.aig aigfuzz/simple_circuit_{i}.aag")
+            f"{AIGTOAIG_PATH} aigfuzz/simple_circuit_{i}.aig aigfuzz/simple_circuit_{i}.aag")
 
 
 def process_circuits(file_count):
@@ -45,13 +50,13 @@ def process_circuits(file_count):
         _ = run.conver_to_sexpr(
             data, multiple_output=True, output_file_path=f"aigfuzz/simple_circuit_{i}.sexpr")
         os.system(
-            f"analyzer/target/release/analyzer aigfuzz/simple_circuit_{i}.sexpr > aigfuzz/simple_circuit_{i}.data")
+            f"analyzer/target/release/analyzer aigfuzz/simple_circuit_{i}.sexpr {i} > aigfuzz/simple_circuit_{i}.data")
 
 
 def run_abc(file_count):
     for i in tqdm(range(file_count), desc='Running abc to extract stats'):
         os.system(
-            f"abc -c \"read_eqn aigfuzz/simple_circuit_{i}_processed.eqn; strash; dch -f; print_stats -p; read_lib ../asap7_clean.lib ; map ; topo; upsize; dnsize; stime; \" > aigfuzz/simple_circuit_{i}.stats")
+            f"{ABC_PATH} -c \"read_eqn aigfuzz/simple_circuit_{i}_processed.eqn; strash; dch -f; print_stats -p; read_lib ../asap7_clean.lib ; map ; topo; upsize; dnsize; stime; \" > aigfuzz/simple_circuit_{i}.stats")
 
 
 def parse_data(file_count):
@@ -102,7 +107,7 @@ if __name__ == "__main__":
     import run_beta
     from CircuitParser import CircuitParser
     print(run.__file__)
-    file_count = 10000
+    file_count = 20
     run_aigfuzz(file_count)
     load_circuits(file_count)
     process_circuits(file_count)
