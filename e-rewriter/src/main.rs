@@ -26,6 +26,7 @@ define_language! {
         "->" = Implies([Id; 2]),
         "let" = Let([Id; 2]),
         "&" = Concat([Id; 2]),
+        "^" = Xor([Id; 2]),
         Symbol(Symbol),
     }
 }
@@ -64,6 +65,10 @@ impl Analysis<Prop> for ConstantFold {
             Prop::Concat([a, b]) => Some((
                 x(a)? > x(b)?,
                 format!("(& {} {})", x(a)?, x(b)?).parse().unwrap(),
+            )),
+            Prop::Xor([a, b]) => Some((
+                x(a)? != x(b)?,
+                format!("(^ {} {})", x(a)?, x(b)?).parse().unwrap(),
             )),
             Prop::Symbol(_) => None,
         };
@@ -111,6 +116,26 @@ fn make_rules_enhance() -> Vec<Rewrite<Prop, ConstantFold>> {
     rws.extend(rewrite!("consensus2"; "(* (* (+ ?b ?c) (+ (! ?b) ?d)) (+ ?c ?d))" <=> "(* (+ ?b ?c) (+ (! ?b) ?d))"));
     rws.extend(rewrite!("de-morgan1"; "(! (* ?b ?c))" <=> "(+ (! ?b) (! ?c))"));
     rws.extend(rewrite!("de-morgan2"; "(! (+ ?b ?c))" <=> "(* (! ?b) (! ?c))"));
+
+    // XOR theorems
+    rws.extend(rewrite!("xor-identity1"; "(^ ?b 0)" <=> "?b"));
+    rws.extend(rewrite!("xor-identity2"; "(^ ?b 1)" <=> "(! ?b)"));
+    rws.extend(rewrite!("xor-self-inverse"; "(^ ?b ?b)" <=> "0"));
+    rws.extend(rewrite!("xor-complement"; "(^ ?b (! ?b))" <=> "1"));
+    rws.extend(rewrite!("xor-commutativity"; "(^ ?b ?c)" <=> "(^ ?c ?b)"));
+    rws.extend(rewrite!("xor-associativity"; "(^(^ ?b ?c) ?d)" <=> "(^ ?b (^ ?c ?d))"));
+    rws.extend(rewrite!("xor-double"; "(^(^ ?b ?c) ?c)" <=> "?b"));
+    // XOR definition: X ^ Y = (!X & Y) | (X & !Y)
+    rws.extend(rewrite!("xor-definition1"; "(^ ?b ?c)" <=> "(+ (* (! ?b) ?c) (* ?b (! ?c)))"));
+    // XOR alternative definition: X ^ Y = (X | Y) & (!(X & Y))
+    rws.extend(rewrite!("xor-definition2"; "(^ ?b ?c)" <=> "(* (+ ?b ?c) (! (* ?b ?c)))"));
+    // XOR with AND: (X & Y) ^ (X & Z) = X & (Y ^ Z)
+    rws.extend(rewrite!("xor-distributivity-and"; "(^ (* ?b ?c) (* ?b ?d))" <=> "(* ?b (^ ?c ?d))"));
+    // XOR with OR: (X | Y) ^ (X | Z) = X | (Y ^ Z) when X & Y & Z = 0
+    // Note: This is more complex and may need conditions
+    // XOR negation: !(X ^ Y) = !X ^ Y = X ^ !Y
+    rws.extend(rewrite!("xor-negation1"; "(! (^ ?b ?c))" <=> "(^ (! ?b) ?c)"));
+    rws.extend(rewrite!("xor-negation2"; "(! (^ ?b ?c))" <=> "(^ ?b (! ?c))"));
 
     rws
 }
@@ -353,7 +378,7 @@ pub fn count_operators(s: &str) -> HashMap<String, f64> {
     let mut operator_counts = HashMap::new();
     for c in s.chars() {
         match c {
-                '*' | '!' | '+' | '-' | '>' | '&' => {
+                '*' | '!' | '+' | '-' | '>' | '&' | '^' => {
                  let entry = operator_counts.entry(c.to_string()).or_insert(0.0);
                         *entry += 1.0;
                     },

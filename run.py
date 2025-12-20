@@ -7,13 +7,35 @@ from sympy.logic.boolalg import And, Not, Or, Xor
 from sympy import sqrt, simplify, count_ops, oo, S
 import os
 import to_sympy_parser, to_sympy_parser_sexpr
+from to_sympy_parser import Concat
 from collections import OrderedDict
 from sympy.parsing.sympy_parser import parse_expr
 from tqdm import tqdm
 import copy
 import CircuitParser
 import sys   
+import threading
 sys.setrecursionlimit(100000)
+
+# 緩存已 build 的 parser 實例以提升性能
+_parser_cache = None
+_parser_lock = threading.Lock()
+
+def _get_cached_parser():
+    """獲取緩存的 parser 實例，如果不存在則創建並 build"""
+    global _parser_cache
+    if _parser_cache is None:
+        with _parser_lock:
+            if _parser_cache is None:  # 雙重檢查鎖定
+                _parser_cache = to_sympy_parser.PropParser()
+                _parser_cache.build()
+    return _parser_cache
+
+def _reset_parser_state(parser):
+    """重置 parser 的狀態以便重用"""
+    parser.atoms = {}
+    parser.concat_spliter = {}
+    parser.concat_spliter_id = 0
 
 def check_equal(FORMULA_LIST, components):
     result = []
@@ -29,7 +51,14 @@ def check_equal(FORMULA_LIST, components):
 
 def sympy_to_rust_sexpr(expr_str): # sympy to rust s-expression
     def recurse(expr):
-        if isinstance(expr, And):
+        if isinstance(expr, Concat):
+            # CONCAT 在 S-expression 中以 & 表示
+            if len(expr.args) > 2:
+                return f'(& {recurse(Concat(*expr.args[:-1]))} {recurse(expr.args[-1])})'
+            else:
+                return '(& ' + ' '.join(map(recurse, expr.args)) + ')'
+        elif isinstance(expr, And):
+            # 普通的 AND 在 S-expression 中以 * 表示
             if len(expr.args) > 2:
                 return f'(* {recurse(And(*expr.args[:-1]))} {recurse(expr.args[-1])})'
             else:
@@ -40,10 +69,11 @@ def sympy_to_rust_sexpr(expr_str): # sympy to rust s-expression
             else:
                 return '(+ ' + ' '.join(map(recurse, expr.args)) + ')'
         elif isinstance(expr, Xor):
+            # XOR 在 S-expression 中以 ^ 表示
             if len(expr.args) > 2:
-                return f'(& {recurse(Xor(*expr.args[:-1]))} {recurse(expr.args[-1])})'
+                return f'(^ {recurse(Xor(*expr.args[:-1]))} {recurse(expr.args[-1])})'
             else:
-                return '(& ' + ' '.join(map(recurse, expr.args)) + ')'
+                return '(^ ' + ' '.join(map(recurse, expr.args)) + ')'
         elif isinstance(expr, Not):
             return f'(! {recurse(expr.args[0])})'
         else:
@@ -82,8 +112,9 @@ def conver_to_sexpr(data, multiple_output = False, output_file_path = "test_data
     # use `sympy_to_rust_sexpr()` to convert to s-expression
     # parse the string to sympy
     
-    parser = to_sympy_parser.PropParser()
-    parser.build()
+    # 使用緩存的 parser 實例，避免每次都重新 build（LALR 表生成很耗時）
+    parser = _get_cached_parser()
+    _reset_parser_state(parser)  # 重置狀態以便重用
     parser_res, _ = parser.parse(eqn)
     result = str(sympy_to_rust_sexpr(parser_res))
     
@@ -92,8 +123,13 @@ def conver_to_sexpr(data, multiple_output = False, output_file_path = "test_data
         myfile.write(result)
         
     if multiple_output: 
-        FORMULA_LIST = [parser.parse(eqn) for eqn in FORMULA_LIST]
-        return FORMULA_LIST
+        # 重用已 build 的 parser，只需重置狀態
+        parsed_formulas = []
+        for eqn_str in FORMULA_LIST:
+            _reset_parser_state(parser)
+            parse_res, _ = parser.parse(eqn_str)
+            parsed_formulas.append(parse_res)
+        return parsed_formulas
     
         
 
@@ -166,7 +202,8 @@ def concatenate_equations(lines):
     
     #order = [line.split('= ')[0] for line in lines if line.startswith('po')]
     
-    FORMULA_LIST = [line.split('= ')[1].rstrip().strip(';') for line in lines[3:]]
+    # 只處理以 'po' 開頭的等式行，跳過 INORDER 和其他行
+    FORMULA_LIST = [line.split('= ')[1].rstrip().strip(';') for line in lines if '=' in line and line.strip().startswith('po')]
     # copy the FORMULA_LIST to equations
     equations = copy.deepcopy(FORMULA_LIST)
     

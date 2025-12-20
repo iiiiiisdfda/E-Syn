@@ -1,6 +1,18 @@
 import ply.yacc as yacc
 from sympy import symbols, And, Or, Not, Xor
+from sympy.logic.boolalg import BooleanFunction
 from prop_lexer import PropLexer
+
+# 定義 CONCAT 類別以區分 CONCAT 和普通的 AND
+class Concat(BooleanFunction):
+    """CONCAT 運算符，用於連接多個等式"""
+    @classmethod
+    def eval(cls, *args):
+        # 如果只有一個參數，直接返回
+        if len(args) == 1:
+            return args[0]
+        # 否則返回 Concat 對象
+        return None
 
 class PropParser(object):
     tokens = PropLexer.tokens
@@ -14,12 +26,15 @@ class PropParser(object):
             | ! prop
     """
 
-    # Parsing rules
+    # Parsing rules (優先順序：NOT > AND > XOR > OR，與 EQN 格式一致)
+    # 注意：PLY 中 precedence 從低到高排列
+    # CONCAT (&) 用於連接多個等式，邏輯上類似 AND，但優先順序可能不同
     precedence = (
-        ("left", "OR"),
-        ("left", "AND"),
-        ("left", "CONCAT"),
-        ("right", "NOT"),
+        ("left", "OR"),       # 優先順序 7 (最低)
+        ("left", "XOR"),      # 優先順序 8
+        ("left", "AND"),      # 優先順序 9
+        ("left", "CONCAT"),   # CONCAT (&) 用於連接等式，優先順序與 AND 相同
+        ("right", "NOT"),     # 優先順序 10 (最高)
     )
 
     def __init__(self):
@@ -41,10 +56,15 @@ class PropParser(object):
     def p_prop_or(self, p):
         "prop : prop OR prop"
         p[0] = Or(p[1], p[3])
+    
+    def p_prop_xor(self, p):
+        "prop : prop XOR prop"
+        p[0] = Xor(p[1], p[3])
         
     def p_prop_concat(self, p):
         "prop : prop CONCAT prop"
-        p[0] = Xor(p[1], p[3])
+        # CONCAT (&) 用於連接多個等式，使用 Concat 類別以區分於普通的 AND
+        p[0] = Concat(p[1], p[3])
         # if self.concat_spliter_id is 0, add p[1] and p[3] to concat_spliter
         if self.concat_spliter_id == 0:
             self.concat_spliter[self.concat_spliter_id] = p[1]

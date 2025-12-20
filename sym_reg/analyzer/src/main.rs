@@ -35,6 +35,10 @@ impl Analysis<Prop> for ConstantFold {
                 x(a)? || x(b)?,
                 format!("(+ {} {})", x(a)?, x(b)?).parse().unwrap(),
             )),
+            Prop::Xor([a, b]) => Some((
+                x(a)? != x(b)?,
+                format!("(^ {} {})", x(a)?, x(b)?).parse().unwrap(),
+            )),
             Prop::Implies([a, b]) => Some((
                 !x(a)? || x(b)?,
                 format!("(-> {} {})", x(a)?, x(b)?).parse().unwrap(),
@@ -66,6 +70,7 @@ define_language! {
         "*" = And([Id; 2]),
         "!" = Not(Id),
         "+" = Or([Id; 2]),
+        "^" = Xor([Id; 2]),
         "->" = Implies([Id; 2]),
         "let" = Let([Id; 2]),
         "&" = Concat([Id; 2]),
@@ -76,7 +81,7 @@ fn count_operators(s: &str) -> HashMap<String, i32> {
     let mut operator_counts = HashMap::new();
     for c in s.chars() {
         match c {
-            '*' | '!' | '+' | '-' | '>' | '&' => {
+            '*' | '!' | '+' | '-' | '>' | '&' | '^' => {
                 let entry = operator_counts.entry(c.to_string()).or_insert(0);
                 *entry += 1;
             },
@@ -105,9 +110,11 @@ fn sum_of_liberty_mutiplied_node_number(operator_counts: &HashMap<String, i32>) 
             // "!" => 9 ,
             // "+" => 26 ,
             // "*"=> 22 ,
+            // "^" => 24 (XOR typically has similar cost to AND/OR)
             "!" => sum += 9 * count,
             "+" => sum += 26 * count,
             "*" => sum += 22 * count,
+            "^" => sum += 24 * count,  // XOR liberty cost
             _ => {},
         }
     }
@@ -138,6 +145,10 @@ fn average_liberty_mutiplied_node_number(operator_counts: &HashMap<String, i32>)
             },
             "*" => {
                 sum += 22 * c;
+                count += c;
+            },
+            "^" => {
+                sum += 24 * c;  // XOR liberty cost
                 count += c;
             },
             _ => {},

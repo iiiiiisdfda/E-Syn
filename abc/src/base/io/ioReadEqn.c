@@ -154,7 +154,8 @@ Abc_Ntk_t * Io_ReadEqnNetwork( Extra_FileReader_t * p )
                 // make a copy of formula for names
                 pFormulaCopy = Extra_UtilStrsav( pFormula );
                 // find the names of the fanins of this node
-                Io_ReadEqnStrCutAt( pFormulaCopy, "!*+()", 1, vVars );
+                // Note: "^" must be included in the delimiter string to properly extract variable names from XOR expressions
+                Io_ReadEqnStrCutAt( pFormulaCopy, "!*+^()", 1, vVars );
             }
             // create the node
             pNode = Io_ReadCreateNode( pNtk, pNodeName, (char **)Vec_PtrArray(vVars), Vec_PtrSize(vVars) );
