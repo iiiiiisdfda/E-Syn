@@ -21,11 +21,13 @@ class CircuitParser:
             line = line.strip()
             current_line += " " + line
             if line.endswith(";"):
-                if current_line.startswith(" INORDER"):
+                # Use strip() to handle cases where current_line has multiple leading spaces
+                current_line_stripped = current_line.strip()
+                if current_line_stripped.startswith("INORDER"):
                     in_order += current_line
-                elif current_line.startswith(" OUTORDER"):
+                elif current_line_stripped.startswith("OUTORDER"):
                     out_order += current_line
-                elif current_line.startswith(" new_n"):
+                elif current_line_stripped.startswith("new_n"):
                     new_n_name, new_n_expr = current_line.split(" = ")
                     self.new_n_dict[new_n_name.strip()] = new_n_expr.strip(";")
                 else:
