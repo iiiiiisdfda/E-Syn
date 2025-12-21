@@ -6,6 +6,8 @@ from sklearn.model_selection import cross_val_score, KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
+import lightgbm as lgb
+from catboost import CatBoostRegressor
 import joblib
 import os
 import warnings
@@ -144,8 +146,14 @@ def main():
     print(f"Data columns: {data.columns.tolist()}")
     
     # 提取特征和目标
-    # 排除最后3列（power, area, delay），使用前面的列作为特征
-    X = data.iloc[:, :-3].values  # 排除最后3列
+    # 明确排除目标变量和相关列，避免数据泄漏
+    # 排除：lev, power, area, delay
+    exclude_cols = ['lev', 'power', 'area', 'delay']
+    # 只保留存在的列（避免某些列不存在时报错）
+    exclude_cols = [col for col in exclude_cols if col in data.columns]
+    feature_cols = [col for col in data.columns if col not in exclude_cols]
+    
+    X = data[feature_cols].values
     y = data['area'].values
     
     print(f"\nFeature shape: {X.shape}")
@@ -158,7 +166,7 @@ def main():
     results = {}
     
     print("\n" + "="*80)
-    print("Model Comparison: XGBoost vs MLP vs Random Forest")
+    print("Model Comparison: XGBoost vs MLP vs Random Forest vs LightGBM vs CatBoost")
     print("Loading pre-trained models and evaluating on test set")
     print("="*80)
     
@@ -167,7 +175,7 @@ def main():
     print(f"Using device: {device}")
     
     # 1. XGBoost - 加载预训练模型并在测试集上评估
-    print("\n[1/3] XGBoost")
+    print("\n[1/5] XGBoost")
     xgb_model_path = 'xgb_best_model.model'
     if os.path.exists(xgb_model_path):
         print(f"  Loading pre-trained XGBoost model from {xgb_model_path}...")
@@ -189,7 +197,7 @@ def main():
         return
     
     # 2. MLP - 加载预训练模型
-    print("\n[2/3] MLP (Multi-Layer Perceptron)")
+    print("\n[2/5] MLP (Multi-Layer Perceptron)")
     mlp_model_path = 'mlp_model_complete.pth'
     if os.path.exists(mlp_model_path):
         print(f"  Loading pre-trained MLP model from {mlp_model_path}...")
@@ -238,7 +246,7 @@ def main():
         return
     
     # 3. Random Forest - 加载预训练模型
-    print("\n[3/3] Random Forest")
+    print("\n[3/5] Random Forest")
     rf_model_path = 'rf_best_model.pkl'
     if os.path.exists(rf_model_path):
         print(f"  Loading pre-trained Random Forest model from {rf_model_path}...")
@@ -264,6 +272,78 @@ def main():
     else:
         print(f"  ✗ Error: Pre-trained model not found at {rf_model_path}")
         print("  Please train the model first using RF_train.py or RF_test.py")
+        return
+    
+    # 4. LightGBM - 加载预训练模型
+    print("\n[4/5] LightGBM")
+    lgbm_model_path = 'lgbm_best_model.pkl'
+    if os.path.exists(lgbm_model_path):
+        print(f"  Loading pre-trained LightGBM model from {lgbm_model_path}...")
+        try:
+            checkpoint = joblib.load(lgbm_model_path)
+            models['LightGBM'] = checkpoint['model']
+            print("  ✓ Model loaded successfully")
+            print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
+            print("  Evaluating on test set...")
+            y_pred = models['LightGBM'].predict(X)
+            results['LightGBM'] = {
+                'MAE': mean_absolute_error(y, y_pred),
+                'MAPE': mape(y, y_pred),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                'R²': r2_score(y, y_pred),
+                'RRSE': rrse(y, y_pred),
+            }
+            # 立即打印结果
+            print(f"  LightGBM Results:")
+            print(f"    MAE:   {results['LightGBM']['MAE']:.4f}")
+            print(f"    MAPE:  {results['LightGBM']['MAPE']:.4f}%")
+            print(f"    RMSE:  {results['LightGBM']['RMSE']:.4f}")
+            print(f"    R²:    {results['LightGBM']['R²']:.4f}")
+            print(f"    RRSE:  {results['LightGBM']['RRSE']:.4f}")
+        except Exception as e:
+            print(f"  ✗ Error loading LightGBM model: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+    else:
+        print(f"  ✗ Error: Pre-trained model not found at {lgbm_model_path}")
+        print("  Please train the model first using LightGBM_train.py")
+        return
+    
+    # 5. CatBoost - 加载预训练模型
+    print("\n[5/5] CatBoost")
+    catboost_model_path = 'catboost_best_model.pkl'
+    if os.path.exists(catboost_model_path):
+        print(f"  Loading pre-trained CatBoost model from {catboost_model_path}...")
+        try:
+            checkpoint = joblib.load(catboost_model_path)
+            models['CatBoost'] = checkpoint['model']
+            print("  ✓ Model loaded successfully")
+            print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
+            print("  Evaluating on test set...")
+            y_pred = models['CatBoost'].predict(X)
+            results['CatBoost'] = {
+                'MAE': mean_absolute_error(y, y_pred),
+                'MAPE': mape(y, y_pred),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                'R²': r2_score(y, y_pred),
+                'RRSE': rrse(y, y_pred),
+            }
+            # 立即打印结果
+            print(f"  CatBoost Results:")
+            print(f"    MAE:   {results['CatBoost']['MAE']:.4f}")
+            print(f"    MAPE:  {results['CatBoost']['MAPE']:.4f}%")
+            print(f"    RMSE:  {results['CatBoost']['RMSE']:.4f}")
+            print(f"    R²:    {results['CatBoost']['R²']:.4f}")
+            print(f"    RRSE:  {results['CatBoost']['RRSE']:.4f}")
+        except Exception as e:
+            print(f"  ✗ Error loading CatBoost model: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+    else:
+        print(f"  ✗ Error: Pre-trained model not found at {catboost_model_path}")
+        print("  Please train the model first using CatBoost_train.py")
         return
     
     # 打印对比结果

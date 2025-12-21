@@ -20,7 +20,7 @@ def r(y_true, y_pred):
 
 df = pd.read_csv('../sym_reg/feature1/10000.csv')
 # 排除最后3列（power, area, delay），使用前面的列作为特征
-X = df.iloc[:, :-3].values
+X = df.iloc[:, :-4].values
 # 保存特征名称用于后续绘图
 feature_names = df.columns[:-3].tolist()
 #y = ( 0.4 * df['area'] + 0.6 * df['delay']).values

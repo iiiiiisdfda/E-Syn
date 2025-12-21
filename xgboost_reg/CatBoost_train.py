@@ -1,15 +1,15 @@
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
+from catboost import CatBoostRegressor
 from sklearn.model_selection import KFold, GridSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.inspection import permutation_importance
 import matplotlib.pyplot as plt
-import joblib
+import m2cgen as m2c
 import os
 import argparse
-import m2cgen as m2c
+import joblib
 
 # 评估指标函数（与 train.py 保持一致）
 def mape(y_true, y_pred):
@@ -22,7 +22,7 @@ def r(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
 
 def main():
-    parser = argparse.ArgumentParser(description='Train Random Forest model')
+    parser = argparse.ArgumentParser(description='Train CatBoost model')
     parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', help='Path to data file')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
@@ -31,6 +31,7 @@ def main():
     data_path = args.data
     if not os.path.exists(data_path):
         alternative_paths = [
+            '../sym_reg/new_50000.csv',
             '../sym_reg/mig_circuit_analysis.csv',
             '../sym_reg/simple_circuit_analysis_large.csv',
             'data.csv'
@@ -56,7 +57,8 @@ def main():
     exclude_cols = [col for col in exclude_cols if col in df.columns]
     feature_cols = [col for col in df.columns if col not in exclude_cols]
     
-    X = df[feature_cols].values
+    # 使用 DataFrame 而不是 values，这样 CatBoost 可以使用特征名称，避免警告
+    X_df = df[feature_cols]
     # 保存特征名称用于后续绘图
     feature_names = feature_cols
     
@@ -66,33 +68,35 @@ def main():
     else:
         y = df['delay'].values
     
-    print(f"\nFeature shape: {X.shape}")
+    print(f"\nFeature shape: {X_df.shape}")
     print(f"Target shape: {y.shape}")
     print(f"Target: {args.target}")
     print(f"Target statistics: mean={np.mean(y):.2f}, std={np.std(y):.2f}, min={np.min(y):.2f}, max={np.max(y):.2f}")
     
-    # 分割数据集
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
+    # 分割数据集（使用 DataFrame）
+    X_train, X_test, y_train, y_test = train_test_split(X_df, y, test_size=0.2, random_state=42)
     print(f"\nTrain set: {X_train.shape[0]} samples")
     print(f"Test set: {X_test.shape[0]} samples")
     
-    # 定义超参数网格
+    # 定义超参数网格（减少参数组合以加快训练）
     param_grid = {
-        'n_estimators': [50, 100, 200],
-        'max_depth': [10, 20, 30, None],
-        'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4],
-        'max_features': ['sqrt', 'log2', None],
+        'iterations': [100, 200],  # CatBoost 使用 iterations 而不是 n_estimators
+        'depth': [5, 10],  # 树深度
+        'learning_rate': [0.05, 0.1],
+        'l2_leaf_reg': [1, 3],  # L2 正则化
+        'random_strength': [0, 1],  # 随机强度
+        'bagging_temperature': [0, 1],  # Bagging 温度
         'random_state': [42],
-        'n_jobs': [-1]
+        'verbose': [False],  # 减少输出
+        'thread_count': [-1]  # 使用所有 CPU 核心
     }
     
     # 创建模型
-    model = RandomForestRegressor()
+    model = CatBoostRegressor()
     
     # 使用 KFold 交叉验证进行网格搜索
     kf = KFold(n_splits=10, shuffle=True, random_state=42)
-    print("\nStarting GridSearchCV with Random Forest...")
+    print("\nStarting GridSearchCV with CatBoost...")
     print(f"Total parameter combinations: {np.prod([len(v) for v in param_grid.values()])}")
     
     grid_search = GridSearchCV(
@@ -109,16 +113,19 @@ def main():
     
     # 获取最佳参数
     best_params = grid_search.best_params_
+    # sklearn 的 neg_mean_absolute_percentage_error 返回负数的小数形式（0-1），需要转换为百分比
+    best_cv_mape = -grid_search.best_score_ * 100
     print("\n" + "="*80)
     print("Best parameters found:")
     print("="*80)
     for param, value in best_params.items():
         print(f"  {param}: {value}")
+    print(f"\nBest Cross-Validation MAPE: {best_cv_mape:.2f}%")
     
     # 使用最佳参数在训练集上训练最终模型
     print("\nTraining final model with best parameters on training set...")
-    best_model = RandomForestRegressor(**best_params)
-    best_model.fit(X_train, y_train)
+    best_model = CatBoostRegressor(**best_params)
+    best_model.fit(X_train, y_train, verbose=False)
     
     # 在测试集上评估
     y_pred = best_model.predict(X_test)
@@ -142,27 +149,11 @@ def main():
     print(f"RMSE (Root Mean Squared Error): {test_rmse:.4f}")
     print("="*80)
     
-    # 特征重要性（基于 Gini 不纯度）
-    print("\nFeature Importance (based on Gini impurity):")
-    feature_importance = pd.DataFrame({
-        'feature': feature_names,
-        'importance': best_model.feature_importances_
-    }).sort_values('importance', ascending=False)
-    print(feature_importance)
-    
-    # 绘制特征重要性
-    plt.figure(figsize=(10, 6))
-    plt.barh(feature_importance['feature'], feature_importance['importance'])
-    plt.xlabel('Importance')
-    plt.title('Random Forest Feature Importance')
-    plt.tight_layout()
-    plt.savefig('rf_feature_importance.png', dpi=300, bbox_inches='tight')
-    print("\nFeature importance plot saved to 'rf_feature_importance.png'")
-    
     # Permutation Importance
+    # 注意：permutation_importance 需要数组格式，所以转换为 values
     print("\nComputing permutation importance...")
     perm_result = permutation_importance(
-        best_model, X_train, y_train, n_repeats=10, random_state=42, n_jobs=-1
+        best_model, X_train.values, y_train, n_repeats=10, random_state=42, n_jobs=-1
     )
     
     # 排序重要性
@@ -178,12 +169,12 @@ def main():
     # 绘制 Permutation Importance
     fig, ax = plt.subplots(figsize=(10, 6))
     importances.plot.box(vert=False, whis=10, ax=ax)
-    ax.set_title("Permutation Importances (train set)")
+    ax.set_title("CatBoost Permutation Importances (train set)")
     ax.axvline(x=0, color="k", linestyle="--")
     ax.set_xlabel("Decrease in accuracy score")
     fig.tight_layout()
-    fig.savefig('rf_permutation_importance.png', dpi=300, bbox_inches='tight')
-    print("Permutation importance plot saved to 'rf_permutation_importance.png'")
+    fig.savefig('catboost_permutation_importance.png', dpi=300, bbox_inches='tight')
+    print("Permutation importance plot saved to 'catboost_permutation_importance.png'")
     
     # 绘制预测 vs 真实值
     plt.figure(figsize=(10, 6))
@@ -191,32 +182,32 @@ def main():
     plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
-    plt.title(f'Random Forest Predictions vs True Values (R² = {test_r2:.4f})')
+    plt.title(f'CatBoost Predictions vs True Values (R² = {test_r2:.4f})')
     plt.tight_layout()
-    plt.savefig('rf_predictions.png', dpi=300, bbox_inches='tight')
-    print("Predictions plot saved to 'rf_predictions.png'")
+    plt.savefig('catboost_predictions.png', dpi=300, bbox_inches='tight')
+    print("Predictions plot saved to 'catboost_predictions.png'")
     
     # 保存模型
-    model_filename = 'rf_best_model.pkl'
+    model_filename = 'catboost_best_model.pkl'
     joblib.dump({
         'model': best_model,
         'best_params': best_params,
         'feature_names': feature_names,
         'target': args.target,
-        'input_dim': X.shape[1]
+        'input_dim': X_train.shape[1]
     }, model_filename)
     print(f"\nModel saved to '{model_filename}'")
-    print("To load the model, use: joblib.load('rf_best_model.pkl')")
+    print("To load the model, use: joblib.load('catboost_best_model.pkl')")
     
     # 导出为 Rust 代码（用于 Rust 项目）
     try:
         print("\nExporting model to Rust code...")
         code = m2c.export_to_rust(best_model)
         
-        # write code in rf_model.rs
-        with open('rf_model.rs', 'w') as f:
+        # write code in catboost_model.rs
+        with open('catboost_model.rs', 'w') as f:
             f.write(code)
-        print("Rust code exported to 'rf_model.rs'")
+        print("Rust code exported to 'catboost_model.rs'")
     except Exception as e:
         print(f"Warning: Could not export to Rust code: {e}")
     

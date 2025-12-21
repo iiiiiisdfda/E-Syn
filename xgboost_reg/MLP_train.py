@@ -122,24 +122,108 @@ def predict(model, X, device='cuda', batch_size=256):
     
     return np.array(predictions)
 
+# 生成 MLP 模型的 Rust 代码
+def generate_mlp_rust_code(model, model_params, scaler_mean, scaler_scale, feature_names):
+    """生成 MLP 模型的 Rust 代码模板"""
+    rust_code = []
+    rust_code.append("// Auto-generated MLP model code")
+    rust_code.append("// This code implements a Multi-Layer Perceptron regression model")
+    rust_code.append("// Note: This is a template. You need to extract actual weights from the PyTorch model")
+    rust_code.append("")
+    rust_code.append("pub struct MLPModel {")
+    rust_code.append("    // Model parameters will be embedded here")
+    rust_code.append("}")
+    rust_code.append("")
+    rust_code.append("impl MLPModel {")
+    rust_code.append("    pub fn new() -> Self {")
+    rust_code.append("        MLPModel {}")
+    rust_code.append("    }")
+    rust_code.append("")
+    rust_code.append("    pub fn predict(&self, features: &[f64]) -> f64 {")
+    rust_code.append("        // Standardize features")
+    rust_code.append(f"        assert_eq!(features.len(), {len(feature_names)});")
+    rust_code.append("")
+    
+    # 添加标准化代码
+    rust_code.append("        // Standardization: (x - mean) / scale")
+    rust_code.append("        let mut standardized: Vec<f64> = Vec::new();")
+    for i, (mean, scale) in enumerate(zip(scaler_mean, scaler_scale)):
+        rust_code.append(f"        standardized.push((features[{i}] - {mean:.10e}) / {scale:.10e});")
+    
+    rust_code.append("")
+    rust_code.append("        // Forward pass through the network")
+    
+    # 获取模型结构信息
+    hidden_dims = model_params.get('hidden_dims', [128, 64, 32])
+    input_dim = len(feature_names)
+    
+    rust_code.append(f"        let mut x = standardized;")
+    rust_code.append("")
+    
+    # 为每一层生成代码模板
+    prev_dim = input_dim
+    for layer_idx, hidden_dim in enumerate(hidden_dims):
+        rust_code.append(f"        // Layer {layer_idx + 1}: {prev_dim} -> {hidden_dim}")
+        rust_code.append(f"        let mut layer_{layer_idx}_out = vec![0.0; {hidden_dim}];")
+        rust_code.append(f"        for j in 0..{hidden_dim} {{")
+        rust_code.append(f"            let mut sum = 0.0;")
+        rust_code.append(f"            for i in 0..{prev_dim} {{")
+        rust_code.append(f"                // TODO: Replace with actual weight: weights[{layer_idx}][j][i]")
+        rust_code.append(f"                sum += x[i] * 0.0;")
+        rust_code.append(f"            }}")
+        rust_code.append(f"            // TODO: Add bias term")
+        rust_code.append(f"            layer_{layer_idx}_out[j] = sum.max(0.0); // ReLU")
+        rust_code.append(f"        }}")
+        rust_code.append(f"        x = layer_{layer_idx}_out;")
+        rust_code.append("")
+        prev_dim = hidden_dim
+    
+    # 输出层
+    rust_code.append(f"        // Output layer: {prev_dim} -> 1")
+    rust_code.append(f"        let mut output = 0.0;")
+    rust_code.append(f"        for i in 0..{prev_dim} {{")
+    rust_code.append(f"            // TODO: Replace with actual weight: output_weights[i]")
+    rust_code.append(f"            output += x[i] * 0.0;")
+    rust_code.append(f"        }}")
+    rust_code.append("        // TODO: Add output bias")
+    rust_code.append("")
+    rust_code.append("        output")
+    rust_code.append("    }")
+    rust_code.append("}")
+    rust_code.append("")
+    rust_code.append("// Instructions:")
+    rust_code.append("// 1. Extract weights and biases from PyTorch model using:")
+    rust_code.append("//    for name, param in model.named_parameters():")
+    rust_code.append("//        print(f'{name}: {param.data}')")
+    rust_code.append("// 2. Replace TODO comments with actual weight values")
+    rust_code.append("// 3. Implement proper matrix multiplication")
+    
+    return "\n".join(rust_code)
+
 # 主函数
 def main(args=None):
     # 如果没有传入 args，使用默认值
     if args is None:
         class DefaultArgs:
+            data = '../sym_reg/feature1/10000.csv'
+            target = 'area'
             epochs = 200
             early_stop_patience = 30
+            cpu = False
         args = DefaultArgs()
     
     # 设置设备
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if args.cpu:
+        device = torch.device('cpu')
+        print("Using CPU mode (--cpu flag set)")
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     print(f"Training epochs: {args.epochs}")
     print(f"Early stopping patience: {args.early_stop_patience}")
     
-    # 读取数据（与 train.py 相同的数据路径）
-    # 可以根据实际情况修改路径
-    data_path = '../sym_reg/feature1/10000.csv'
+    # 读取数据
+    data_path = args.data
     
     # 如果原路径不存在，尝试使用相对路径
     if not os.path.exists(data_path):
@@ -148,7 +232,7 @@ def main(args=None):
             '../sym_reg/mig_circuit_analysis.csv',
             '../sym_reg/simple_circuit_analysis_large.csv',
             'data.csv',
-            '../sym_reg/aigfuzz_random/fuzz_circuit_analysis.csv'  # xgboost_reg 可能的数据文件
+            '../sym_reg/aigfuzz_random/fuzz_circuit_analysis.csv'
         ]
         for alt_path in alternative_paths:
             if os.path.exists(alt_path):
@@ -156,9 +240,9 @@ def main(args=None):
                 print(f"Using alternative data path: {data_path}")
                 break
         else:
-            print(f"Error: Data file not found. Please check the path.")
+            print(f"Error: Data file not found: {args.data}")
             print(f"Tried paths: {data_path}, {alternative_paths}")
-            print("\nPlease specify the data file path by modifying the 'data_path' variable in the script.")
+            print("\nPlease specify the data file path using --data argument.")
             return
     
     df = pd.read_csv(data_path)
@@ -166,9 +250,23 @@ def main(args=None):
     print(f"Data columns: {df.columns.tolist()}")
     
     # 提取特征和目标（与 train.py 相同）
-    # 排除最后3列（power, area, delay），使用前面的列作为特征
-    X = df.iloc[:, :-3].values
-    y = df['area'].values  # 可以改为 'delay' 或组合目标
+    # 明确排除目标变量和相关列，避免数据泄漏
+    # 排除：lev, power, area, delay
+    exclude_cols = ['lev', 'power', 'area', 'delay']
+    # 只保留存在的列（避免某些列不存在时报错）
+    exclude_cols = [col for col in exclude_cols if col in df.columns]
+    feature_cols = [col for col in df.columns if col not in exclude_cols]
+    
+    X = df[feature_cols].values
+    feature_names = feature_cols
+    
+    # 根据命令行参数选择目标变量
+    if args.target == 'area':
+        y = df['area'].values
+    else:
+        y = df['delay'].values
+    
+    print(f"Target variable: {args.target}")
     
     print(f"Feature shape: {X.shape}")
     print(f"Target shape: {y.shape}")
@@ -299,6 +397,29 @@ def main(args=None):
     print("\nModel saved to 'mlp_model_complete.pth'")
     print("Note: To load this model, use: torch.load('mlp_model_complete.pth', weights_only=False)")
     
+    # 导出为 Rust 代码（手动实现，因为 m2cgen 不支持 PyTorch 模型）
+    try:
+        print("\nExporting MLP model to Rust code...")
+        # 获取模型参数
+        model_params_list = list(best_model.parameters())
+        
+        # 获取 scaler 参数
+        scaler_mean = scaler.mean_
+        scaler_scale = scaler.scale_
+        
+        # 生成 Rust 代码
+        rust_code = generate_mlp_rust_code(best_model, best_params, scaler_mean, scaler_scale, feature_names)
+        
+        # 写入文件
+        with open('mlp_model.rs', 'w') as f:
+            f.write(rust_code)
+        print("Rust code exported to 'mlp_model.rs'")
+        print("Note: This is a basic implementation. You may need to adjust the code for your specific use case.")
+    except Exception as e:
+        print(f"Warning: Could not export MLP to Rust code: {e}")
+        import traceback
+        traceback.print_exc()
+    
     # 绘制预测 vs 真实值
     plt.figure(figsize=(10, 6))
     plt.scatter(y_test, y_test_pred, alpha=0.5)
@@ -335,8 +456,7 @@ def main(args=None):
         feature_importances.append(importance)
     
     # 绘制特征重要性
-    # 使用与特征提取相同的逻辑：排除最后3列
-    feature_names = df.columns[:-3].tolist()
+    # 使用与特征提取相同的逻辑：使用之前定义的 feature_names
     # 确保特征名称和重要性数量匹配
     if len(feature_names) != len(feature_importances):
         print(f"Warning: Feature names count ({len(feature_names)}) != importance count ({len(feature_importances)})")
@@ -360,8 +480,13 @@ def main(args=None):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Train MLP model for circuit area prediction')
+    parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', 
+                        help='Path to CSV data file (default: ../sym_reg/feature1/10000.csv)')
+    parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'],
+                        help='Target variable: area or delay (default: area)')
     parser.add_argument('--epochs', type=int, default=200, help='Number of training epochs (default: 200)')
     parser.add_argument('--early_stop_patience', type=int, default=30, help='Early stopping patience (default: 30)')
+    parser.add_argument('--cpu', action='store_true', help='Force CPU mode (useful if GPU causes segmentation fault)')
     args = parser.parse_args()
     
     # 将 args 传递给 main 函数
