@@ -50,11 +50,15 @@ def main():
     
     # 提取特征和目标
     # 明确排除目标变量和相关列，避免数据泄漏
-    # 排除：lev, power, area, delay
-    exclude_cols = ['lev', 'power', 'area', 'delay']
+    # 排除：lev, power, area, delay, gates, cap, and_gates
+    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
     # 只保留存在的列（避免某些列不存在时报错）
     exclude_cols = [col for col in exclude_cols if col in df.columns]
     feature_cols = [col for col in df.columns if col not in exclude_cols]
+    
+    print(f"\nExcluded columns: {exclude_cols}")
+    print(f"Final feature count: {len(feature_cols)}")
+    print(f"Feature columns: {feature_cols}")
     
     X = df[feature_cols].values
     # 保存特征名称用于后续绘图
@@ -76,13 +80,10 @@ def main():
     print(f"\nTrain set: {X_train.shape[0]} samples")
     print(f"Test set: {X_test.shape[0]} samples")
     
-    # 定义超参数网格
+    # 定义超参数网格（简化，与 XGBoost 风格一致）
     param_grid = {
-        'n_estimators': [50, 100, 200],
-        'max_depth': [10, 20, 30, None],
-        'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4],
-        'max_features': ['sqrt', 'log2', None],
+        'n_estimators': [100, 160, 200],  # 与 XGBoost 一致
+        'max_depth': [3, 5, 10],  # 与 XGBoost 一致
         'random_state': [42],
         'n_jobs': [-1]
     }

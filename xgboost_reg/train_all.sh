@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 训练所有模型的脚本
-# 依次训练 XGBoost、MLP、Random Forest、LightGBM、CatBoost，然后进行模型比较
+# 依次训练 XGBoost、Random Forest、LightGBM、CatBoost，然后进行模型比较
 # 用法: ./train_all.sh [--data CSV_PATH] [--target area|delay] [--eval-data EVAL_CSV_PATH] [--skip-comparison]
 
 set -e  # 遇到错误立即退出
@@ -85,7 +85,7 @@ START_TIME=$(date +%s)
 
 # 1. 训练 XGBoost 模型
 echo "=========================================="
-echo "[1/5] Training XGBoost Model"
+echo "[1/4] Training XGBoost Model"
 echo "=========================================="
 if [ -f "train.py" ]; then
     python train.py --data "$DATA_PATH"
@@ -101,32 +101,9 @@ else
 fi
 echo ""
 
-# 2. 训练 MLP 模型
+# 2. 训练 Random Forest 模型
 echo "=========================================="
-echo "[2/5] Training MLP Model"
-echo "=========================================="
-if [ -f "MLP_train.py" ]; then
-    if [ "$USE_CPU" = true ]; then
-        echo "Using CPU mode (--cpu flag set)"
-        python MLP_train.py --data "$DATA_PATH" --target "$TARGET" --cpu
-    else
-        python MLP_train.py --data "$DATA_PATH" --target "$TARGET"
-    fi
-    if [ $? -eq 0 ]; then
-        echo "✓ MLP training completed successfully"
-    else
-        echo "✗ MLP training failed"
-        exit 1
-    fi
-else
-    echo "✗ Error: MLP_train.py not found"
-    exit 1
-fi
-echo ""
-
-# 3. 训练 Random Forest 模型
-echo "=========================================="
-echo "[3/5] Training Random Forest Model"
+echo "[2/4] Training Random Forest Model"
 echo "=========================================="
 if [ -f "RF_train.py" ]; then
     python RF_train.py --data "$DATA_PATH" --target "$TARGET"
@@ -142,9 +119,9 @@ else
 fi
 echo ""
 
-# 4. 训练 LightGBM 模型
+# 3. 训练 LightGBM 模型
 echo "=========================================="
-echo "[4/5] Training LightGBM Model"
+echo "[3/4] Training LightGBM Model"
 echo "=========================================="
 if [ -f "LightGBM_train.py" ]; then
     python LightGBM_train.py --data "$DATA_PATH" --target "$TARGET"
@@ -160,9 +137,9 @@ else
 fi
 echo ""
 
-# 5. 训练 CatBoost 模型
+# 4. 训练 CatBoost 模型
 echo "=========================================="
-echo "[5/5] Training CatBoost Model"
+echo "[4/4] Training CatBoost Model"
 echo "=========================================="
 if [ -f "CatBoost_train.py" ]; then
     python CatBoost_train.py --data "$DATA_PATH" --target "$TARGET"
@@ -178,10 +155,10 @@ else
 fi
 echo ""
 
-# 6. 模型比较（可选）
+# 5. 模型比较（可选）
 if [ "$SKIP_COMPARISON" = false ]; then
     echo "=========================================="
-    echo "[6/6] Model Comparison"
+    echo "[5/5] Model Comparison"
     echo "=========================================="
     if [ -f "model_comparision.py" ]; then
         # 检查评估数据文件是否存在
@@ -222,12 +199,6 @@ if [ -f "xgb_best_model.model" ]; then
     echo "  ✓ xgb_best_model.model"
 else
     echo "  ✗ xgb_best_model.model (not found)"
-fi
-
-if [ -f "mlp_model_complete.pth" ]; then
-    echo "  ✓ mlp_model_complete.pth"
-else
-    echo "  ✗ mlp_model_complete.pth (not found)"
 fi
 
 if [ -f "rf_best_model.pkl" ]; then

@@ -251,11 +251,15 @@ def main(args=None):
     
     # 提取特征和目标（与 train.py 相同）
     # 明确排除目标变量和相关列，避免数据泄漏
-    # 排除：lev, power, area, delay
-    exclude_cols = ['lev', 'power', 'area', 'delay']
+    # 排除：lev, power, area, delay, gates, cap, and_gates
+    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
     # 只保留存在的列（避免某些列不存在时报错）
     exclude_cols = [col for col in exclude_cols if col in df.columns]
     feature_cols = [col for col in df.columns if col not in exclude_cols]
+    
+    print(f"\nExcluded columns: {exclude_cols}")
+    print(f"Final feature count: {len(feature_cols)}")
+    print(f"Feature columns: {feature_cols}")
     
     X = df[feature_cols].values
     feature_names = feature_cols

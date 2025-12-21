@@ -10,6 +10,7 @@ import lightgbm as lgb
 from catboost import CatBoostRegressor
 import joblib
 import os
+import argparse
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -136,25 +137,99 @@ def cross_val_evaluate_mlp(mlp_wrapper, X, y, model_name="MLP", n_folds=10):
     }
 
 def main():
+    parser = argparse.ArgumentParser(description='Compare multiple trained models')
+    parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', help='Path to data file')
+    parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
+    args = parser.parse_args()
+    
     # 读取数据
-    data_path = '../sym_reg/feature1/1000.csv'
-    
-    
+    data_path = args.data
+    if not os.path.exists(data_path):
+        alternative_paths = [
+            '../sym_reg/feature1/1000.csv',
+            '../sym_reg/new_50000.csv',
+            '../sym_reg/mig_circuit_analysis.csv',
+            '../sym_reg/simple_circuit_analysis_large.csv',
+            'data.csv'
+        ]
+        for alt_path in alternative_paths:
+            if os.path.exists(alt_path):
+                data_path = alt_path
+                print(f"Using alternative data path: {data_path}")
+                break
+        else:
+            print(f"Error: Data file not found at {args.data}")
+            print("Tried alternative paths but none exist.")
+            return
     
     data = pd.read_csv(data_path)
     print(f"Data shape: {data.shape}")
     print(f"Data columns: {data.columns.tolist()}")
     
-    # 提取特征和目标
-    # 明确排除目标变量和相关列，避免数据泄漏
-    # 排除：lev, power, area, delay
-    exclude_cols = ['lev', 'power', 'area', 'delay']
-    # 只保留存在的列（避免某些列不存在时报错）
-    exclude_cols = [col for col in exclude_cols if col in data.columns]
-    feature_cols = [col for col in data.columns if col not in exclude_cols]
+    # 首先尝试从已保存的模型中获取特征名称
+    # 这样可以确保使用与训练时相同的特征集和顺序
+    model_feature_names = None
+    
+    # 尝试从 RF、LightGBM 或 CatBoost 模型中获取特征名称
+    model_paths = ['rf_best_model.pkl', 'lgbm_best_model.pkl', 'catboost_best_model.pkl']
+    for model_path in model_paths:
+        if os.path.exists(model_path):
+            try:
+                checkpoint = joblib.load(model_path)
+                if 'feature_names' in checkpoint:
+                    model_feature_names = checkpoint['feature_names']
+                    print(f"\nFound feature names from {model_path}: {len(model_feature_names)} features")
+                    break
+            except Exception as e:
+                print(f"Warning: Could not load {model_path}: {e}")
+                continue
+    
+    # 如果没有找到保存的特征名称，则从数据中提取（排除目标变量和相关列）
+    if model_feature_names is None:
+        print("\nNo saved feature names found. Extracting features from data...")
+        # 排除：lev, power, area, delay, gates, cap, and_gates
+        exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
+        exclude_cols = [col for col in exclude_cols if col in data.columns]
+        feature_cols = [col for col in data.columns if col not in exclude_cols]
+        print(f"Excluded columns: {exclude_cols}")
+        print(f"Final feature count: {len(feature_cols)}")
+        print(f"Feature columns: {feature_cols}")
+    else:
+        # 使用保存的特征名称，但需要验证这些特征在数据中存在
+        missing_features = [f for f in model_feature_names if f not in data.columns]
+        if missing_features:
+            print(f"\nWarning: The following features from saved model are missing in data: {missing_features}")
+            print("This may cause errors. Please ensure the data file matches the training data.")
+        
+        feature_cols = [f for f in model_feature_names if f in data.columns]
+        if len(feature_cols) != len(model_feature_names):
+            print(f"\nWarning: Expected {len(model_feature_names)} features, but only {len(feature_cols)} found in data.")
+            print("Missing features:", [f for f in model_feature_names if f not in data.columns])
+        
+        print(f"\nUsing feature names from saved model: {len(feature_cols)} features")
+        print(f"Feature columns: {feature_cols}")
+    
+    # 确保特征顺序与模型期望的一致
+    # 如果使用了保存的特征名称，验证特征数量是否匹配
+    if model_feature_names is not None:
+        if len(feature_cols) != len(model_feature_names):
+            print(f"\n❌ ERROR: Feature count mismatch!")
+            print(f"   Model expects {len(model_feature_names)} features")
+            print(f"   But only {len(feature_cols)} features found in data")
+            print(f"   Missing features: {[f for f in model_feature_names if f not in data.columns]}")
+            print(f"\n   This usually means:")
+            print(f"   1. The model was trained with different features")
+            print(f"   2. The data file doesn't match the training data")
+            print(f"   3. You need to retrain the models with the updated feature exclusion list")
+            print(f"\n   Please retrain all models using the updated training scripts.")
+            return
     
     X = data[feature_cols].values
-    y = data['area'].values
+    # 选择目标变量
+    if args.target == 'area':
+        y = data['area'].values
+    else:
+        y = data['delay'].values
     
     print(f"\nFeature shape: {X.shape}")
     print(f"Number of features: {X.shape[1]}")
@@ -166,7 +241,7 @@ def main():
     results = {}
     
     print("\n" + "="*80)
-    print("Model Comparison: XGBoost vs MLP vs Random Forest vs LightGBM vs CatBoost")
+    print("Model Comparison: XGBoost vs Random Forest vs LightGBM vs CatBoost")
     print("Loading pre-trained models and evaluating on test set")
     print("="*80)
     
@@ -175,7 +250,7 @@ def main():
     print(f"Using device: {device}")
     
     # 1. XGBoost - 加载预训练模型并在测试集上评估
-    print("\n[1/5] XGBoost")
+    print("\n[1/4] XGBoost")
     xgb_model_path = 'xgb_best_model.model'
     if os.path.exists(xgb_model_path):
         print(f"  Loading pre-trained XGBoost model from {xgb_model_path}...")
@@ -196,57 +271,8 @@ def main():
         print("  Please train the model first using train.py")
         return
     
-    # 2. MLP - 加载预训练模型
-    print("\n[2/5] MLP (Multi-Layer Perceptron)")
-    mlp_model_path = 'mlp_model_complete.pth'
-    if os.path.exists(mlp_model_path):
-        print(f"  Loading pre-trained MLP model from {mlp_model_path}...")
-        try:
-            checkpoint = torch.load(mlp_model_path, weights_only=False)
-            
-            # 从 checkpoint 中读取实际的模型结构参数
-            model_params = checkpoint.get('model_params', {})
-            input_dim = checkpoint.get('input_dim', X.shape[1])
-            hidden_dims = model_params.get('hidden_dims', checkpoint.get('hidden_dims', [128, 64, 32]))
-            dropout_rate = model_params.get('dropout', checkpoint.get('dropout_rate', 0.2))
-            
-            print(f"  Model architecture: input_dim={input_dim}, hidden_dims={hidden_dims}, dropout_rate={dropout_rate}")
-            
-            # 使用从 checkpoint 读取的参数创建模型
-            mlp_model = MLPRegressor(
-                input_dim=input_dim,
-                hidden_dims=hidden_dims,
-                dropout_rate=dropout_rate
-            )
-            mlp_model.load_state_dict(checkpoint['model_state_dict'])
-            mlp_model = mlp_model.to(device)
-            mlp_model.eval()
-            
-            # 创建包装类用于评估
-            mlp_scaler = checkpoint.get('scaler', StandardScaler())
-            models['MLP'] = MLPWrapper(mlp_model, mlp_scaler, device=device)
-            print("  ✓ Model loaded successfully")
-            print("  Evaluating on test set...")
-            y_pred = models['MLP'].predict(X)
-            results['MLP'] = {
-                'MAE': mean_absolute_error(y, y_pred),
-                'MAPE': mape(y, y_pred),
-                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-                'R²': r2_score(y, y_pred),
-                'RRSE': rrse(y, y_pred),
-            }
-        except Exception as e:
-            print(f"  ✗ Error loading MLP model: {e}")
-            import traceback
-            traceback.print_exc()
-            return
-    else:
-        print(f"  ✗ Error: Pre-trained model not found at {mlp_model_path}")
-        print("  Please train the model first using MLP_train.py")
-        return
-    
-    # 3. Random Forest - 加载预训练模型
-    print("\n[3/5] Random Forest")
+    # 2. Random Forest - 加载预训练模型
+    print("\n[2/4] Random Forest")
     rf_model_path = 'rf_best_model.pkl'
     if os.path.exists(rf_model_path):
         print(f"  Loading pre-trained Random Forest model from {rf_model_path}...")
@@ -255,6 +281,12 @@ def main():
             models['Random Forest'] = checkpoint['model']
             print("  ✓ Model loaded successfully")
             print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
+            # 验证特征数量
+            expected_features = checkpoint.get('input_dim', None)
+            if expected_features is not None:
+                print(f"  Model expects {expected_features} features, data has {X.shape[1]} features")
+                if expected_features != X.shape[1]:
+                    print(f"  ⚠ Warning: Feature count mismatch!")
             print("  Evaluating on test set...")
             y_pred = models['Random Forest'].predict(X)
             results['Random Forest'] = {
@@ -274,8 +306,8 @@ def main():
         print("  Please train the model first using RF_train.py or RF_test.py")
         return
     
-    # 4. LightGBM - 加载预训练模型
-    print("\n[4/5] LightGBM")
+    # 3. LightGBM - 加载预训练模型
+    print("\n[3/4] LightGBM")
     lgbm_model_path = 'lgbm_best_model.pkl'
     if os.path.exists(lgbm_model_path):
         print(f"  Loading pre-trained LightGBM model from {lgbm_model_path}...")
@@ -284,6 +316,12 @@ def main():
             models['LightGBM'] = checkpoint['model']
             print("  ✓ Model loaded successfully")
             print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
+            # 验证特征数量
+            expected_features = checkpoint.get('input_dim', None)
+            if expected_features is not None:
+                print(f"  Model expects {expected_features} features, data has {X.shape[1]} features")
+                if expected_features != X.shape[1]:
+                    print(f"  ⚠ Warning: Feature count mismatch!")
             print("  Evaluating on test set...")
             y_pred = models['LightGBM'].predict(X)
             results['LightGBM'] = {
@@ -310,8 +348,8 @@ def main():
         print("  Please train the model first using LightGBM_train.py")
         return
     
-    # 5. CatBoost - 加载预训练模型
-    print("\n[5/5] CatBoost")
+    # 4. CatBoost - 加载预训练模型
+    print("\n[4/4] CatBoost")
     catboost_model_path = 'catboost_best_model.pkl'
     if os.path.exists(catboost_model_path):
         print(f"  Loading pre-trained CatBoost model from {catboost_model_path}...")
@@ -320,6 +358,12 @@ def main():
             models['CatBoost'] = checkpoint['model']
             print("  ✓ Model loaded successfully")
             print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
+            # 验证特征数量
+            expected_features = checkpoint.get('input_dim', None)
+            if expected_features is not None:
+                print(f"  Model expects {expected_features} features, data has {X.shape[1]} features")
+                if expected_features != X.shape[1]:
+                    print(f"  ⚠ Warning: Feature count mismatch!")
             print("  Evaluating on test set...")
             y_pred = models['CatBoost'].predict(X)
             results['CatBoost'] = {

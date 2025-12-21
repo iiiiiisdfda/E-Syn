@@ -8,6 +8,8 @@ import numpy as np
 from sklearn import metrics
 import m2cgen as m2c
 from sklearn.inspection import permutation_importance
+import argparse
+import os
 
 def mape(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
@@ -18,96 +20,141 @@ def rrse(y_true, y_pred):
 def r(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
 
-df = pd.read_csv('../sym_reg/feature1/10000.csv')
-# 排除最后3列（power, area, delay），使用前面的列作为特征
-X = df.iloc[:, :-4].values
-# 保存特征名称用于后续绘图
-feature_names = df.columns[:-3].tolist()
-#y = ( 0.4 * df['area'] + 0.6 * df['delay']).values
-#y = df['delay'].values
-y = df['area'].values
-# Scale the features
-# scaler = StandardScaler()
-# X = scaler.fit_transform(X)
+def main():
+    parser = argparse.ArgumentParser(description='Train XGBoost model')
+    parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', help='Path to data file')
+    parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
+    args = parser.parse_args()
+    
+    # 读取数据
+    data_path = args.data
+    if not os.path.exists(data_path):
+        alternative_paths = [
+            '../sym_reg/new_50000.csv',
+            '../sym_reg/mig_circuit_analysis.csv',
+            '../sym_reg/simple_circuit_analysis_large.csv',
+            'data.csv'
+        ]
+        for alt_path in alternative_paths:
+            if os.path.exists(alt_path):
+                data_path = alt_path
+                print(f"Using alternative data path: {data_path}")
+                break
+        else:
+            print(f"Error: Data file not found at {args.data}")
+            print("Tried alternative paths but none exist.")
+            return
+    
+    df = pd.read_csv(data_path)
+    print(f"Data shape: {df.shape}")
+    print(f"Data columns: {df.columns.tolist()}")
 
-# Split the dataset into train and test sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # 提取特征和目标
+    # 明确排除目标变量和相关列，避免数据泄漏
+    # 排除：lev, power, area, delay, gates, cap, and_gates
+    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
+    # 只保留存在的列（避免某些列不存在时报错）
+    exclude_cols = [col for col in exclude_cols if col in df.columns]
+    feature_cols = [col for col in df.columns if col not in exclude_cols]
 
-params = {
-    'max_depth': [3, 5, 10],
-    'learning_rate': [0.01, 0.1, 0.2],
-    'n_estimators': [100, 160, 200],
-    'objective': ['reg:gamma'],
-    'booster': ['gbtree'],
-    'tree_method': ['hist'],  # 使用 hist 而不是 gpu_hist（已弃用）
-    'device': ['cuda'],  # 新版本使用 device 参数
-    'n_jobs': [-1],
-    'seed': [123]
-}
+    X = df[feature_cols].values
+    # 保存特征名称用于后续绘图
+    feature_names = feature_cols
+    
+    # 选择目标变量
+    if args.target == 'area':
+        y = df['area'].values
+    else:
+        y = df['delay'].values
 
-model = xgb.XGBRegressor()
-kf = KFold(n_splits=10, shuffle=True, random_state=0)
-# print data size
-print("X_train size:", X_train.shape)
-print("X_test size:", X_test.shape)
-grid_search = GridSearchCV(estimator=model, param_grid=params, scoring='neg_mean_absolute_percentage_error', cv=kf, verbose=1)
-grid_search.fit(X,y)
+    print(f"\nExcluded columns: {exclude_cols}")
+    print(f"Final feature count: {len(feature_cols)}")
+    print(f"Feature columns: {feature_cols}")
+    # Scale the features
+    # scaler = StandardScaler()
+    # X = scaler.fit_transform(X)
 
-best_params = grid_search.best_params_
-print("Best parameters found:", best_params)
+    # Split the dataset into train and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train the model with the best parameters on the entire dataset for feature importance
-model_full = xgb.XGBRegressor(**best_params).fit(X_train, y_train)
-plot_importance(model_full)
-plt.savefig('feature_importance.png')
+    params = {
+        'max_depth': [3, 5, 10],
+        'learning_rate': [0.01, 0.1, 0.2],
+        'n_estimators': [100, 160, 200],
+        'objective': ['reg:gamma'],
+        'booster': ['gbtree'],
+        'tree_method': ['hist'],  # 使用 hist 而不是 gpu_hist（已弃用）
+        'device': ['cuda'],  # 新版本使用 device 参数
+        'n_jobs': [-1],
+        'seed': [123]
+    }
 
-# Performing permutation importance
-result = permutation_importance(
-    model_full, X_train, y_train, n_repeats=10, random_state=42, n_jobs=2
-)
+    model = xgb.XGBRegressor()
+    kf = KFold(n_splits=10, shuffle=True, random_state=0)
+    # print data size
+    print("X_train size:", X_train.shape)
+    print("X_test size:", X_test.shape)
+    grid_search = GridSearchCV(estimator=model, param_grid=params, scoring='neg_mean_absolute_percentage_error', cv=kf, verbose=1)
+    grid_search.fit(X,y)
 
-# Sorting importances
-sorted_importances_idx = result.importances_mean.argsort()
-# 使用之前保存的特征名称
-df_columns_sorted = [feature_names[i] for i in sorted_importances_idx]
+    best_params = grid_search.best_params_
+    print("Best parameters found:", best_params)
 
-# Creating DataFrame for plotting
-importances = pd.DataFrame(
-    result.importances[sorted_importances_idx].T,
-    columns=df_columns_sorted,
-)
+    # Train the model with the best parameters on the entire dataset for feature importance
+    model_full = xgb.XGBRegressor(**best_params).fit(X_train, y_train)
+    plot_importance(model_full)
+    plt.savefig('feature_importance.png')
 
-# Plotting the permutation importances
-ax = importances.plot.box(vert=False, whis=10)
-ax.set_title("Permutation Importances (train set)")
-ax.axvline(x=0, color="k", linestyle="--")
-ax.set_xlabel("Decrease in accuracy score")
-fig = ax.get_figure()
-fig.tight_layout()
-fig.savefig('permutation_importance.png')
+    # Performing permutation importance
+    result = permutation_importance(
+        model_full, X_train, y_train, n_repeats=10, random_state=42, n_jobs=2
+    )
 
-# Print the best score (mean absolute error)
-best_mape_score = -grid_search.best_score_
-print("Best Mean Percentage Absolute Error:", best_mape_score)
+    # Sorting importances
+    sorted_importances_idx = result.importances_mean.argsort()
+    # 使用之前保存的特征名称
+    df_columns_sorted = [feature_names[i] for i in sorted_importances_idx]
 
-#best_mape_score = -grid_search.best_score_
+    # Creating DataFrame for plotting
+    importances = pd.DataFrame(
+        result.importances[sorted_importances_idx].T,
+        columns=df_columns_sorted,
+    )
 
-y_pred = model_full.predict(X_test)
-print("Mean Absolute Error Percentage (MAPE):", metrics.mean_absolute_percentage_error(y_test, y_pred))
-print("Root Relative Square Error (RRSE):", rrse(y_test, y_pred))
-print("Correlation Coefficient (R):", r(y_test, y_pred))
-print("Coeff Determination (R^2):", metrics.r2_score(y_test, y_pred))
-print("Mean Absolute Error (MAE):", metrics.mean_absolute_error(y_test, y_pred))
-print("RMSE (Root Mean Squared Error):", np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
+    # Plotting the permutation importances
+    ax = importances.plot.box(vert=False, whis=10)
+    ax.set_title("Permutation Importances (train set)")
+    ax.axvline(x=0, color="k", linestyle="--")
+    ax.set_xlabel("Decrease in accuracy score")
+    fig = ax.get_figure()
+    fig.tight_layout()
+    fig.savefig('permutation_importance.png')
 
-# 保存 XGBoost 模型文件（用于 Python 加载）
-model_full.save_model('xgb_best_model.model')
-print("XGBoost model saved to 'xgb_best_model.model'")
+    # Print the best score (mean absolute error)
+    best_mape_score = -grid_search.best_score_
+    print("Best Mean Percentage Absolute Error:", best_mape_score)
 
-# 导出为 Rust 代码（用于 Rust 项目）
-code = m2c.export_to_rust(model_full)
+    #best_mape_score = -grid_search.best_score_
 
-# write code in model.rs
-with open('model.rs', 'w') as f:
-    f.write(code)
-print("Rust code exported to 'model.rs'")
+    y_pred = model_full.predict(X_test)
+    print("Mean Absolute Error Percentage (MAPE):", metrics.mean_absolute_percentage_error(y_test, y_pred))
+    print("Root Relative Square Error (RRSE):", rrse(y_test, y_pred))
+    print("Correlation Coefficient (R):", r(y_test, y_pred))
+    print("Coeff Determination (R^2):", metrics.r2_score(y_test, y_pred))
+    print("Mean Absolute Error (MAE):", metrics.mean_absolute_error(y_test, y_pred))
+    print("RMSE (Root Mean Squared Error):", np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
+
+    # 保存 XGBoost 模型文件（用于 Python 加载）
+    model_full.save_model('xgb_best_model.model')
+    print("XGBoost model saved to 'xgb_best_model.model'")
+
+    # 导出为 Rust 代码（用于 Rust 项目）
+    code = m2c.export_to_rust(model_full)
+
+    # write code in model.rs
+    with open('model.rs', 'w') as f:
+        f.write(code)
+    print("Rust code exported to 'model.rs'")
+
+if __name__ == "__main__":
+    main()

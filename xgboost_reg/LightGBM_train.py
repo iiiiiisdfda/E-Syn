@@ -51,11 +51,15 @@ def main():
     
     # 提取特征和目标
     # 明确排除目标变量和相关列，避免数据泄漏
-    # 排除：lev, power, area, delay
-    exclude_cols = ['lev', 'power', 'area', 'delay']
+    # 排除：lev, power, area, delay, gates, cap, and_gates
+    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
     # 只保留存在的列（避免某些列不存在时报错）
     exclude_cols = [col for col in exclude_cols if col in df.columns]
     feature_cols = [col for col in df.columns if col not in exclude_cols]
+    
+    print(f"\nExcluded columns: {exclude_cols}")
+    print(f"Final feature count: {len(feature_cols)}")
+    print(f"Feature columns: {feature_cols}")
     
     # 使用 DataFrame 而不是 values，这样 LightGBM 可以使用特征名称
     X_df = df[feature_cols]
@@ -78,17 +82,11 @@ def main():
     print(f"\nTrain set: {X_train.shape[0]} samples")
     print(f"Test set: {X_test.shape[0]} samples")
     
-    # 定义超参数网格（减少参数组合以加快训练）
+    # 定义超参数网格（简化，与 XGBoost 一致）
     param_grid = {
-        'n_estimators': [100, 200],  # 减少选项
-        'max_depth': [5, 10],  # 减少选项
-        'learning_rate': [0.05, 0.1],  # 减少选项
-        'num_leaves': [31, 50],  # 减少选项
-        'min_child_samples': [20, 30],  # 减少选项
-        'subsample': [0.8, 1.0],
-        'colsample_bytree': [0.8, 1.0],
-        'reg_alpha': [0],  # 简化正则化
-        'reg_lambda': [0],  # 简化正则化
+        'n_estimators': [100, 160, 200],  # 与 XGBoost 一致
+        'max_depth': [3, 5, 10],  # 与 XGBoost 一致
+        'learning_rate': [0.01, 0.1, 0.2],  # 与 XGBoost 一致
         'random_state': [42],
         'n_jobs': [-1],
         'verbosity': [-1]  # 减少输出

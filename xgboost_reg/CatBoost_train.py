@@ -51,11 +51,15 @@ def main():
     
     # 提取特征和目标
     # 明确排除目标变量和相关列，避免数据泄漏
-    # 排除：lev, power, area, delay
-    exclude_cols = ['lev', 'power', 'area', 'delay']
+    # 排除：lev, power, area, delay, gates, cap, and_gates
+    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
     # 只保留存在的列（避免某些列不存在时报错）
     exclude_cols = [col for col in exclude_cols if col in df.columns]
     feature_cols = [col for col in df.columns if col not in exclude_cols]
+    
+    print(f"\nExcluded columns: {exclude_cols}")
+    print(f"Final feature count: {len(feature_cols)}")
+    print(f"Feature columns: {feature_cols}")
     
     # 使用 DataFrame 而不是 values，这样 CatBoost 可以使用特征名称，避免警告
     X_df = df[feature_cols]
@@ -78,34 +82,32 @@ def main():
     print(f"\nTrain set: {X_train.shape[0]} samples")
     print(f"Test set: {X_test.shape[0]} samples")
     
-    # 定义超参数网格（减少参数组合以加快训练）
+    # 定义超参数网格（简化，与 XGBoost 一致）
     param_grid = {
-        'iterations': [100, 200],  # CatBoost 使用 iterations 而不是 n_estimators
-        'depth': [5, 10],  # 树深度
-        'learning_rate': [0.05, 0.1],
-        'l2_leaf_reg': [1, 3],  # L2 正则化
-        'random_strength': [0, 1],  # 随机强度
-        'bagging_temperature': [0, 1],  # Bagging 温度
+        'iterations': [100, 160, 200],  # 对应 XGBoost 的 n_estimators
+        'depth': [3, 5, 10],  # 对应 XGBoost 的 max_depth
+        'learning_rate': [0.01, 0.1, 0.2],  # 与 XGBoost 一致
         'random_state': [42],
         'verbose': [False],  # 减少输出
         'thread_count': [-1]  # 使用所有 CPU 核心
     }
     
-    # 创建模型
-    model = CatBoostRegressor()
+    # 创建模型，禁用文件写入以避免并行冲突
+    model = CatBoostRegressor(allow_writing_files=False)
     
     # 使用 KFold 交叉验证进行网格搜索
     kf = KFold(n_splits=10, shuffle=True, random_state=42)
     print("\nStarting GridSearchCV with CatBoost...")
     print(f"Total parameter combinations: {np.prod([len(v) for v in param_grid.values()])}")
     
+    # 减少并行度以避免文件写入冲突
     grid_search = GridSearchCV(
         estimator=model,
         param_grid=param_grid,
         scoring='neg_mean_absolute_percentage_error',
         cv=kf,
         verbose=1,
-        n_jobs=-1
+        n_jobs=4  # 减少并行度，避免文件冲突
     )
     
     # 在训练集上进行网格搜索（交叉验证会自动分割），避免数据泄漏
@@ -124,7 +126,9 @@ def main():
     
     # 使用最佳参数在训练集上训练最终模型
     print("\nTraining final model with best parameters on training set...")
-    best_model = CatBoostRegressor(**best_params)
+    # 从 best_params 中移除 allow_writing_files（如果存在），然后单独设置
+    final_params = {k: v for k, v in best_params.items() if k != 'allow_writing_files'}
+    best_model = CatBoostRegressor(**final_params, allow_writing_files=True)  # 最终训练时可以写入文件
     best_model.fit(X_train, y_train, verbose=False)
     
     # 在测试集上评估
