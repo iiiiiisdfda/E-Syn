@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 训练所有模型的脚本
-# 依次训练 XGBoost、Random Forest、LightGBM、CatBoost，然后进行模型比较
+# 依次训练 XGBoost、Random Forest、LightGBM，然后进行模型比较
 # 用法: ./train_all.sh [--data CSV_PATH] [--target area|delay] [--eval-data EVAL_CSV_PATH] [--skip-comparison]
 
 set -e  # 遇到错误立即退出
@@ -12,7 +12,7 @@ cd "$SCRIPT_DIR"
 
 # 解析命令行参数
 DATA_PATH="../sym_reg/new_50000.csv"
-TARGET="area"
+TARGET="delay"
 EVAL_DATA_PATH="../sym_reg/new_10000.csv"  # 如果为空，使用训练数据路径
 SKIP_COMPARISON=false
 USE_CPU=false
@@ -85,10 +85,10 @@ START_TIME=$(date +%s)
 
 # 1. 训练 XGBoost 模型
 echo "=========================================="
-echo "[1/4] Training XGBoost Model"
+echo "[1/3] Training XGBoost Model"
 echo "=========================================="
 if [ -f "train.py" ]; then
-    python train.py --data "$DATA_PATH"
+    python train.py --data "$DATA_PATH" --target "$TARGET"
     if [ $? -eq 0 ]; then
         echo "✓ XGBoost training completed successfully"
     else
@@ -103,7 +103,7 @@ echo ""
 
 # 2. 训练 Random Forest 模型
 echo "=========================================="
-echo "[2/4] Training Random Forest Model"
+echo "[2/3] Training Random Forest Model"
 echo "=========================================="
 if [ -f "RF_train.py" ]; then
     python RF_train.py --data "$DATA_PATH" --target "$TARGET"
@@ -121,7 +121,7 @@ echo ""
 
 # 3. 训练 LightGBM 模型
 echo "=========================================="
-echo "[3/4] Training LightGBM Model"
+echo "[3/3] Training LightGBM Model"
 echo "=========================================="
 if [ -f "LightGBM_train.py" ]; then
     python LightGBM_train.py --data "$DATA_PATH" --target "$TARGET"
@@ -137,28 +137,10 @@ else
 fi
 echo ""
 
-# 4. 训练 CatBoost 模型
-echo "=========================================="
-echo "[4/4] Training CatBoost Model"
-echo "=========================================="
-if [ -f "CatBoost_train.py" ]; then
-    python CatBoost_train.py --data "$DATA_PATH" --target "$TARGET"
-    if [ $? -eq 0 ]; then
-        echo "✓ CatBoost training completed successfully"
-    else
-        echo "✗ CatBoost training failed"
-        exit 1
-    fi
-else
-    echo "✗ Error: CatBoost_train.py not found"
-    exit 1
-fi
-echo ""
-
-# 5. 模型比较（可选）
+# 4. 模型比较（可选）
 if [ "$SKIP_COMPARISON" = false ]; then
     echo "=========================================="
-    echo "[5/5] Model Comparison"
+    echo "[4/4] Model Comparison"
     echo "=========================================="
     if [ -f "model_comparision.py" ]; then
         # 检查评估数据文件是否存在
@@ -195,28 +177,22 @@ echo ""
 
 # 检查生成的模型文件
 echo "Generated model files:"
-if [ -f "xgb_best_model.model" ]; then
-    echo "  ✓ xgb_best_model.model"
+if [ -f "xgb_best_model_${TARGET}.model" ]; then
+    echo "  ✓ xgb_best_model_${TARGET}.model"
 else
-    echo "  ✗ xgb_best_model.model (not found)"
+    echo "  ✗ xgb_best_model_${TARGET}.model (not found)"
 fi
 
-if [ -f "rf_best_model.pkl" ]; then
-    echo "  ✓ rf_best_model.pkl"
+if [ -f "rf_best_model_${TARGET}.pkl" ]; then
+    echo "  ✓ rf_best_model_${TARGET}.pkl"
 else
-    echo "  ✗ rf_best_model.pkl (not found)"
+    echo "  ✗ rf_best_model_${TARGET}.pkl (not found)"
 fi
 
-if [ -f "lgbm_best_model.pkl" ]; then
-    echo "  ✓ lgbm_best_model.pkl"
+if [ -f "lgbm_best_model_${TARGET}.pkl" ]; then
+    echo "  ✓ lgbm_best_model_${TARGET}.pkl"
 else
-    echo "  ✗ lgbm_best_model.pkl (not found)"
-fi
-
-if [ -f "catboost_best_model.pkl" ]; then
-    echo "  ✓ catboost_best_model.pkl"
-else
-    echo "  ✗ catboost_best_model.pkl (not found)"
+    echo "  ✗ lgbm_best_model_${TARGET}.pkl (not found)"
 fi
 
 echo ""
@@ -228,11 +204,11 @@ if [ "$SKIP_COMPARISON" = true ]; then
     echo "  python model_comparision.py --data \"$EVAL_DATA_PATH\" --target \"$TARGET\""
 else
     echo "Model comparison has been completed."
-    if [ -f "model_comparison_results.csv" ]; then
-        echo "  Results saved to: model_comparison_results.csv"
+    if [ -f "model_comparison_results_${TARGET}.csv" ]; then
+        echo "  Results saved to: model_comparison_results_${TARGET}.csv"
     fi
-    if [ -f "model_comparison.png" ]; then
-        echo "  Plots saved to: model_comparison.png"
+    if [ -f "model_comparison_${TARGET}.png" ]; then
+        echo "  Plots saved to: model_comparison_${TARGET}.png"
     fi
 fi
 echo "=========================================="

@@ -174,7 +174,7 @@ def main():
     ax.axvline(x=0, color="k", linestyle="--")
     ax.set_xlabel("Decrease in accuracy score")
     fig.tight_layout()
-    fig.savefig('lgbm_permutation_importance.png', dpi=300, bbox_inches='tight')
+    fig.savefig(f'lgbm_permutation_importance_{args.target}.png', dpi=300, bbox_inches='tight')
     print("Permutation importance plot saved to 'lgbm_permutation_importance.png'")
     
     # 绘制预测 vs 真实值
@@ -185,11 +185,11 @@ def main():
     plt.ylabel('Predicted Values')
     plt.title(f'LightGBM Predictions vs True Values (R² = {test_r2:.4f})')
     plt.tight_layout()
-    plt.savefig('lgbm_predictions.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'lgbm_predictions_{args.target}.png', dpi=300, bbox_inches='tight')
     print("Predictions plot saved to 'lgbm_predictions.png'")
     
     # 保存模型
-    model_filename = 'lgbm_best_model.pkl'
+    model_filename = f'lgbm_best_model_{args.target}.pkl'
     joblib.dump({
         'model': best_model,
         'best_params': best_params,
@@ -206,9 +206,10 @@ def main():
         code = m2c.export_to_rust(best_model)
         
         # write code in lgbm_model.rs
-        with open('lgbm_model.rs', 'w') as f:
+        rust_filename = f'lgbm_model_{args.target}.rs'
+        with open(rust_filename, 'w') as f:
             f.write(code)
-        print("Rust code exported to 'lgbm_model.rs'")
+        print(f"Rust code exported to '{rust_filename}'")
     except Exception as e:
         print(f"Warning: Could not export to Rust code: {e}")
     

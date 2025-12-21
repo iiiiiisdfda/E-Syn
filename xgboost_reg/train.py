@@ -103,7 +103,7 @@ def main():
     # Train the model with the best parameters on the entire dataset for feature importance
     model_full = xgb.XGBRegressor(**best_params).fit(X_train, y_train)
     plot_importance(model_full)
-    plt.savefig('feature_importance.png')
+    plt.savefig(f'feature_importance_{args.target}.png')
 
     # Performing permutation importance
     result = permutation_importance(
@@ -128,7 +128,7 @@ def main():
     ax.set_xlabel("Decrease in accuracy score")
     fig = ax.get_figure()
     fig.tight_layout()
-    fig.savefig('permutation_importance.png')
+    fig.savefig(f'permutation_importance_{args.target}.png')
 
     # Print the best score (mean absolute error)
     best_mape_score = -grid_search.best_score_
@@ -145,16 +145,18 @@ def main():
     print("RMSE (Root Mean Squared Error):", np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
 
     # 保存 XGBoost 模型文件（用于 Python 加载）
-    model_full.save_model('xgb_best_model.model')
-    print("XGBoost model saved to 'xgb_best_model.model'")
+    model_filename = f'xgb_best_model_{args.target}.model'
+    model_full.save_model(model_filename)
+    print(f"XGBoost model saved to '{model_filename}'")
 
     # 导出为 Rust 代码（用于 Rust 项目）
     code = m2c.export_to_rust(model_full)
 
     # write code in model.rs
-    with open('model.rs', 'w') as f:
+    rust_filename = f'model_{args.target}.rs'
+    with open(rust_filename, 'w') as f:
         f.write(code)
-    print("Rust code exported to 'model.rs'")
+    print(f"Rust code exported to '{rust_filename}'")
 
 if __name__ == "__main__":
     main()

@@ -21,6 +21,200 @@ def rrse(y_true, y_pred):
 def r(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
 
+def generate_catboost_rust_code(model, feature_names, target_name):
+    """
+    手动生成 CatBoost 模型的 Rust 代码
+    提取树结构并转换为 Rust 代码
+    """
+    rust_code = []
+    rust_code.append("// Auto-generated CatBoost model code")
+    rust_code.append("// This code implements a CatBoost regression model")
+    rust_code.append(f"// Target: {target_name}")
+    rust_code.append(f"// Number of features: {len(feature_names)}")
+    rust_code.append("")
+    rust_code.append("pub struct CatBoostModel {")
+    rust_code.append("    // Model parameters embedded in predict function")
+    rust_code.append("}")
+    rust_code.append("")
+    rust_code.append("impl CatBoostModel {")
+    rust_code.append("    pub fn new() -> Self {")
+    rust_code.append("        CatBoostModel {}")
+    rust_code.append("    }")
+    rust_code.append("")
+    rust_code.append("    pub fn predict(&self, features: &[f64]) -> f64 {")
+    rust_code.append(f"        assert_eq!(features.len(), {len(feature_names)});")
+    rust_code.append("")
+    rust_code.append("        // CatBoost uses sum of tree predictions")
+    rust_code.append("        let mut result = 0.0;")
+    rust_code.append("")
+    
+    # 获取模型信息并提取树结构
+    try:
+        tree_count = model.tree_count_
+        rust_code.append(f"        // Number of trees: {tree_count}")
+        rust_code.append("")
+        
+        # 提取所有树的结构
+        trees_implemented = 0
+        for tree_idx in range(tree_count):
+            try:
+                tree = model.get_tree(tree_idx)
+                # 提取树结构
+                tree_code = _extract_tree_structure(tree, tree_idx, feature_names)
+                if tree_code:
+                    rust_code.append(f"        result += self.tree_{tree_idx}(features);")
+                    trees_implemented += 1
+                    if trees_implemented >= 50:  # 限制生成的树数量，避免文件过大
+                        rust_code.append(f"        // ... ({tree_count - trees_implemented} more trees)")
+                        break
+            except Exception as e:
+                # 如果无法提取单棵树，跳过
+                continue
+        
+        if trees_implemented == 0:
+            rust_code.append("        // Tree extraction failed, using template")
+            rust_code.append("        result += self.tree_0(features);")
+        
+    except Exception as e:
+        # 如果无法获取树信息，生成通用模板
+        rust_code.append("        // Tree structure extraction failed, using template")
+        rust_code.append("        result += self.tree_0(features);")
+    
+    rust_code.append("")
+    rust_code.append("        result")
+    rust_code.append("    }")
+    rust_code.append("")
+    
+    # 生成实际的树函数
+    try:
+        tree_count = model.tree_count_
+        trees_generated = 0
+        for tree_idx in range(min(tree_count, 50)):  # 限制前50棵树
+            try:
+                tree = model.get_tree(tree_idx)
+                tree_func = _generate_tree_function(tree, tree_idx, feature_names)
+                if tree_func:
+                    rust_code.append(tree_func)
+                    rust_code.append("")
+                    trees_generated += 1
+            except Exception as e:
+                continue
+        
+        if trees_generated == 0:
+            # 生成模板树函数
+            rust_code.append("    // Tree prediction function (template)")
+            rust_code.append("    fn tree_0(&self, features: &[f64]) -> f64 {")
+            rust_code.append("        // TODO: Extract actual tree structure")
+            rust_code.append("        // Use: tree = model.get_tree(0)")
+            rust_code.append("        0.0")
+            rust_code.append("    }")
+    except Exception as e:
+        # 生成模板
+        rust_code.append("    // Tree prediction function (template)")
+        rust_code.append("    fn tree_0(&self, features: &[f64]) -> f64 {")
+        rust_code.append("        // TODO: Extract actual tree structure")
+        rust_code.append("        0.0")
+        rust_code.append("    }")
+    
+    rust_code.append("}")
+    rust_code.append("")
+    rust_code.append("// Note: This is a template. To extract full tree structure:")
+    rust_code.append("// 1. Use CatBoost's get_tree() method to get tree structure")
+    rust_code.append("// 2. Parse splits and leaf values")
+    rust_code.append("// 3. Convert to Rust if-else statements")
+    rust_code.append("")
+    rust_code.append("// Alternative: Use catboost-portable crate:")
+    rust_code.append("// use catboost_portable::Model;")
+    rust_code.append(f"// let model = Model::load(\"catboost_best_model_{target_name}.cbm\")?;")
+    rust_code.append("// let prediction = model.predict(&features)?;")
+    
+    return "\n".join(rust_code)
+
+def _extract_tree_structure(tree, tree_idx, feature_names):
+    """提取单棵树的结构信息（辅助函数）"""
+    # CatBoost 树结构比较复杂，这里返回 None 表示使用模板
+    # 实际实现需要解析 tree 对象的结构
+    return None
+
+def _generate_tree_function(tree, tree_idx, feature_names):
+    """生成单棵树的 Rust 函数（辅助函数）"""
+    # 尝试提取树结构
+    try:
+        func_code = []
+        func_code.append(f"    fn tree_{tree_idx}(&self, features: &[f64]) -> f64 {{")
+        
+        # CatBoost 树是一个字典，包含 'splits', 'values' 等
+        if isinstance(tree, dict):
+            splits = tree.get('splits', [])
+            values = tree.get('values', [])
+            
+            if splits and values:
+                # 生成实际的树结构
+                func_code.extend(_generate_tree_logic(splits, values, feature_names, 0, 0))
+            else:
+                func_code.append("        // Tree structure extraction incomplete")
+                func_code.append("        0.0")
+        else:
+            # 如果 tree 不是字典，尝试其他方法
+            try:
+                # 尝试获取树的字符串表示
+                tree_str = str(tree)
+                func_code.append(f"        // Tree {tree_idx}: {len(tree_str)} chars")
+                func_code.append("        // TODO: Parse tree structure manually")
+                func_code.append("        0.0")
+            except:
+                func_code.append("        0.0")
+        
+        func_code.append("    }")
+        return "\n".join(func_code)
+    except Exception as e:
+        # 生成模板
+        func_code = []
+        func_code.append(f"    fn tree_{tree_idx}(&self, features: &[f64]) -> f64 {{")
+        func_code.append(f"        // Tree {tree_idx} - extraction failed: {str(e)[:50]}")
+        func_code.append("        0.0")
+        func_code.append("    }")
+        return "\n".join(func_code)
+
+def _generate_tree_logic(splits, values, feature_names, node_idx, indent_level):
+    """递归生成树的逻辑代码"""
+    code_lines = []
+    indent = "        " + "    " * indent_level
+    
+    if node_idx >= len(values):
+        code_lines.append(f"{indent}0.0")
+        return code_lines
+    
+    # 如果是叶子节点
+    if node_idx >= len(splits) or splits[node_idx] is None:
+        value = values[node_idx] if node_idx < len(values) else 0.0
+        code_lines.append(f"{indent}{value:.10e}")
+        return code_lines
+    
+    # 获取分割信息
+    split = splits[node_idx]
+    if isinstance(split, dict):
+        feature_idx = split.get('float_feature_index', split.get('feature_index', 0))
+        border = split.get('border', 0.0)
+        
+        # 左子树（小于等于）
+        left_idx = node_idx * 2 + 1
+        # 右子树（大于）
+        right_idx = node_idx * 2 + 2
+        
+        feature_name = feature_names[feature_idx] if feature_idx < len(feature_names) else f"features[{feature_idx}]"
+        code_lines.append(f"{indent}if features[{feature_idx}] <= {border:.10e} {{")
+        code_lines.extend(_generate_tree_logic(splits, values, feature_names, left_idx, indent_level + 1))
+        code_lines.append(f"{indent}}} else {{")
+        code_lines.extend(_generate_tree_logic(splits, values, feature_names, right_idx, indent_level + 1))
+        code_lines.append(f"{indent}}}")
+    else:
+        # 如果分割格式不同，使用模板
+        code_lines.append(f"{indent}// TODO: Parse split structure")
+        code_lines.append(f"{indent}0.0")
+    
+    return code_lines
+
 def main():
     parser = argparse.ArgumentParser(description='Train CatBoost model')
     parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', help='Path to data file')
@@ -177,8 +371,9 @@ def main():
     ax.axvline(x=0, color="k", linestyle="--")
     ax.set_xlabel("Decrease in accuracy score")
     fig.tight_layout()
-    fig.savefig('catboost_permutation_importance.png', dpi=300, bbox_inches='tight')
-    print("Permutation importance plot saved to 'catboost_permutation_importance.png'")
+    perm_importance_filename = f'catboost_permutation_importance_{args.target}.png'
+    fig.savefig(perm_importance_filename, dpi=300, bbox_inches='tight')
+    print(f"Permutation importance plot saved to '{perm_importance_filename}'")
     
     # 绘制预测 vs 真实值
     plt.figure(figsize=(10, 6))
@@ -188,11 +383,12 @@ def main():
     plt.ylabel('Predicted Values')
     plt.title(f'CatBoost Predictions vs True Values (R² = {test_r2:.4f})')
     plt.tight_layout()
-    plt.savefig('catboost_predictions.png', dpi=300, bbox_inches='tight')
-    print("Predictions plot saved to 'catboost_predictions.png'")
+    predictions_filename = f'catboost_predictions_{args.target}.png'
+    plt.savefig(predictions_filename, dpi=300, bbox_inches='tight')
+    print(f"Predictions plot saved to '{predictions_filename}'")
     
     # 保存模型
-    model_filename = 'catboost_best_model.pkl'
+    model_filename = f'catboost_best_model_{args.target}.pkl'
     joblib.dump({
         'model': best_model,
         'best_params': best_params,
@@ -201,19 +397,58 @@ def main():
         'input_dim': X_train.shape[1]
     }, model_filename)
     print(f"\nModel saved to '{model_filename}'")
-    print("To load the model, use: joblib.load('catboost_best_model.pkl')")
+    print(f"To load the model, use: joblib.load('{model_filename}')")
     
-    # 导出为 Rust 代码（用于 Rust 项目）
+    # 导出为 Rust 可用的格式
+    print("\n" + "="*80)
+    print("Exporting Model for Rust Usage")
+    print("="*80)
+    
+    # 1. 保存为 .cbm 格式（CatBoost 原生格式，可用于 Rust 绑定库）
     try:
-        print("\nExporting model to Rust code...")
-        code = m2c.export_to_rust(best_model)
-        
-        # write code in catboost_model.rs
-        with open('catboost_model.rs', 'w') as f:
-            f.write(code)
-        print("Rust code exported to 'catboost_model.rs'")
+        cbm_filename = f'catboost_best_model_{args.target}.cbm'
+        best_model.save_model(cbm_filename)
+        print(f"✓ CatBoost model saved: '{cbm_filename}'")
+        print("  Can be loaded by catboost-portable or catboost-rs in Rust")
     except Exception as e:
-        print(f"Warning: Could not export to Rust code: {e}")
+        print(f"⚠️  Could not save .cbm format: {e}")
+    
+    # 2. 尝试导出为 ONNX 格式（如果支持）
+    try:
+        onnx_filename = f'catboost_best_model_{args.target}.onnx'
+        best_model.save_model(onnx_filename, format='onnx')
+        print(f"✓ ONNX model saved: '{onnx_filename}'")
+        print("  Can be used with onnxruntime-rs in Rust")
+    except Exception as e:
+        # ONNX 可能不支持，这是正常的
+        if 'onnx' not in str(e).lower() and 'format' not in str(e).lower():
+            print(f"⚠️  Could not save ONNX format: {e}")
+    
+    # 3. 生成 Rust 代码（手动实现）
+    print("\nGenerating Rust code (.rs file)...")
+    try:
+        rust_code = generate_catboost_rust_code(best_model, feature_names, args.target)
+        rust_filename = f'catboost_model_{args.target}.rs'
+        with open(rust_filename, 'w') as f:
+            f.write(rust_code)
+        print(f"✓ Rust code template generated: '{rust_filename}'")
+        print("  Note: This is a template. You need to extract tree structure manually.")
+        print("  See comments in the .rs file for instructions.")
+    except Exception as e:
+        print(f"⚠️  Could not generate Rust code: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 4. 尝试使用 m2cgen（虽然不支持，但尝试一下）
+    print("\nAttempting m2cgen export (will likely fail)...")
+    try:
+        rust_code_m2c = m2c.export_to_rust(best_model)
+        rust_filename_m2c = f'catboost_model_m2cgen_{args.target}.rs'
+        with open(rust_filename_m2c, 'w') as f:
+            f.write(rust_code_m2c)
+        print(f"✓ Rust code exported via m2cgen: '{rust_filename_m2c}'")
+    except Exception as e:
+        print(f"  m2cgen does not support CatBoost (expected): {e}")
     
     print("\n" + "="*80)
     print("Training completed successfully!")

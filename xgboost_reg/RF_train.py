@@ -157,7 +157,7 @@ def main():
     plt.xlabel('Importance')
     plt.title('Random Forest Feature Importance')
     plt.tight_layout()
-    plt.savefig('rf_feature_importance.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'rf_feature_importance_{args.target}.png', dpi=300, bbox_inches='tight')
     print("\nFeature importance plot saved to 'rf_feature_importance.png'")
     
     # Permutation Importance
@@ -183,7 +183,7 @@ def main():
     ax.axvline(x=0, color="k", linestyle="--")
     ax.set_xlabel("Decrease in accuracy score")
     fig.tight_layout()
-    fig.savefig('rf_permutation_importance.png', dpi=300, bbox_inches='tight')
+    fig.savefig(f'rf_permutation_importance_{args.target}.png', dpi=300, bbox_inches='tight')
     print("Permutation importance plot saved to 'rf_permutation_importance.png'")
     
     # 绘制预测 vs 真实值
@@ -194,11 +194,11 @@ def main():
     plt.ylabel('Predicted Values')
     plt.title(f'Random Forest Predictions vs True Values (R² = {test_r2:.4f})')
     plt.tight_layout()
-    plt.savefig('rf_predictions.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'rf_predictions_{args.target}.png', dpi=300, bbox_inches='tight')
     print("Predictions plot saved to 'rf_predictions.png'")
     
     # 保存模型
-    model_filename = 'rf_best_model.pkl'
+    model_filename = f'rf_best_model_{args.target}.pkl'
     joblib.dump({
         'model': best_model,
         'best_params': best_params,
@@ -215,9 +215,10 @@ def main():
         code = m2c.export_to_rust(best_model)
         
         # write code in rf_model.rs
-        with open('rf_model.rs', 'w') as f:
+        rust_filename = f'rf_model_{args.target}.rs'
+        with open(rust_filename, 'w') as f:
             f.write(code)
-        print("Rust code exported to 'rf_model.rs'")
+        print(f"Rust code exported to '{rust_filename}'")
     except Exception as e:
         print(f"Warning: Could not export to Rust code: {e}")
     

@@ -7,7 +7,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 import lightgbm as lgb
-from catboost import CatBoostRegressor
 import joblib
 import os
 import argparse
@@ -170,8 +169,8 @@ def main():
     # 这样可以确保使用与训练时相同的特征集和顺序
     model_feature_names = None
     
-    # 尝试从 RF、LightGBM 或 CatBoost 模型中获取特征名称
-    model_paths = ['rf_best_model.pkl', 'lgbm_best_model.pkl', 'catboost_best_model.pkl']
+    # 尝试从 RF 或 LightGBM 模型中获取特征名称
+    model_paths = [f'rf_best_model_{args.target}.pkl', f'lgbm_best_model_{args.target}.pkl']
     for model_path in model_paths:
         if os.path.exists(model_path):
             try:
@@ -241,7 +240,7 @@ def main():
     results = {}
     
     print("\n" + "="*80)
-    print("Model Comparison: XGBoost vs Random Forest vs LightGBM vs CatBoost")
+    print("Model Comparison: XGBoost vs Random Forest vs LightGBM")
     print("Loading pre-trained models and evaluating on test set")
     print("="*80)
     
@@ -250,8 +249,8 @@ def main():
     print(f"Using device: {device}")
     
     # 1. XGBoost - 加载预训练模型并在测试集上评估
-    print("\n[1/4] XGBoost")
-    xgb_model_path = 'xgb_best_model.model'
+    print("\n[1/3] XGBoost")
+    xgb_model_path = f'xgb_best_model_{args.target}.model'
     if os.path.exists(xgb_model_path):
         print(f"  Loading pre-trained XGBoost model from {xgb_model_path}...")
         models['XGBoost'] = xgb.XGBRegressor()
@@ -272,8 +271,8 @@ def main():
         return
     
     # 2. Random Forest - 加载预训练模型
-    print("\n[2/4] Random Forest")
-    rf_model_path = 'rf_best_model.pkl'
+    print("\n[2/3] Random Forest")
+    rf_model_path = f'rf_best_model_{args.target}.pkl'
     if os.path.exists(rf_model_path):
         print(f"  Loading pre-trained Random Forest model from {rf_model_path}...")
         try:
@@ -307,8 +306,8 @@ def main():
         return
     
     # 3. LightGBM - 加载预训练模型
-    print("\n[3/4] LightGBM")
-    lgbm_model_path = 'lgbm_best_model.pkl'
+    print("\n[3/3] LightGBM")
+    lgbm_model_path = f'lgbm_best_model_{args.target}.pkl'
     if os.path.exists(lgbm_model_path):
         print(f"  Loading pre-trained LightGBM model from {lgbm_model_path}...")
         try:
@@ -348,48 +347,6 @@ def main():
         print("  Please train the model first using LightGBM_train.py")
         return
     
-    # 4. CatBoost - 加载预训练模型
-    print("\n[4/4] CatBoost")
-    catboost_model_path = 'catboost_best_model.pkl'
-    if os.path.exists(catboost_model_path):
-        print(f"  Loading pre-trained CatBoost model from {catboost_model_path}...")
-        try:
-            checkpoint = joblib.load(catboost_model_path)
-            models['CatBoost'] = checkpoint['model']
-            print("  ✓ Model loaded successfully")
-            print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
-            # 验证特征数量
-            expected_features = checkpoint.get('input_dim', None)
-            if expected_features is not None:
-                print(f"  Model expects {expected_features} features, data has {X.shape[1]} features")
-                if expected_features != X.shape[1]:
-                    print(f"  ⚠ Warning: Feature count mismatch!")
-            print("  Evaluating on test set...")
-            y_pred = models['CatBoost'].predict(X)
-            results['CatBoost'] = {
-                'MAE': mean_absolute_error(y, y_pred),
-                'MAPE': mape(y, y_pred),
-                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-                'R²': r2_score(y, y_pred),
-                'RRSE': rrse(y, y_pred),
-            }
-            # 立即打印结果
-            print(f"  CatBoost Results:")
-            print(f"    MAE:   {results['CatBoost']['MAE']:.4f}")
-            print(f"    MAPE:  {results['CatBoost']['MAPE']:.4f}%")
-            print(f"    RMSE:  {results['CatBoost']['RMSE']:.4f}")
-            print(f"    R²:    {results['CatBoost']['R²']:.4f}")
-            print(f"    RRSE:  {results['CatBoost']['RRSE']:.4f}")
-        except Exception as e:
-            print(f"  ✗ Error loading CatBoost model: {e}")
-            import traceback
-            traceback.print_exc()
-            return
-    else:
-        print(f"  ✗ Error: Pre-trained model not found at {catboost_model_path}")
-        print("  Please train the model first using CatBoost_train.py")
-        return
-    
     # 打印对比结果
     print("\n" + "="*80)
     print("Model Comparison Results (Test Set Evaluation)")
@@ -413,8 +370,9 @@ def main():
               f"{metrics['RMSE']:>6.2f}")
     
     # 保存结果到 CSV
-    comparison_df.to_csv('model_comparison_results.csv')
-    print(f"\nResults saved to 'model_comparison_results.csv'")
+    csv_filename = f'model_comparison_results_{args.target}.csv'
+    comparison_df.to_csv(csv_filename)
+    print(f"\nResults saved to '{csv_filename}'")
     
     # 找出最佳模型
     best_model_mape = comparison_df.index[0]
@@ -513,8 +471,9 @@ def main():
         ax6.grid(axis='x', alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig('model_comparison.png', dpi=300, bbox_inches='tight')
-        print("Comparison plots saved to 'model_comparison.png'")
+        plot_filename = f'model_comparison_{args.target}.png'
+        plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
+        print(f"Comparison plots saved to '{plot_filename}'")
         
     except Exception as e:
         print(f"Warning: Could not create plots: {e}")
