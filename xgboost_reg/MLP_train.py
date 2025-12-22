@@ -205,9 +205,9 @@ def main(args=None):
     # 如果没有传入 args，使用默认值
     if args is None:
         class DefaultArgs:
-            data = '../sym_reg/feature1/10000.csv'
+            data = '../sym_reg/graph50000new.csv'
             target = 'area'
-            epochs = 200
+            epochs = 300
             early_stop_patience = 30
             cpu = False
         args = DefaultArgs()
@@ -389,16 +389,21 @@ def main(args=None):
     print(f"RMSE (Root Mean Squared Error): {test_rmse:.4f}")
     print("="*50)
     
+    # 创建输出文件夹
+    output_dir = 'mlp_data'
+    os.makedirs(output_dir, exist_ok=True)
+    
     # 保存模型和 scaler
     # 注意：此文件包含 sklearn 对象（scaler），加载时需要使用 weights_only=False
     # 例如：checkpoint = torch.load('mlp_model_complete.pth', weights_only=False)
+    model_path = os.path.join(output_dir, f'mlp_model_complete_{args.target}.pth')
     torch.save({
         'model_state_dict': best_model.state_dict(),
         'model_params': best_params,
         'scaler': scaler,
         'input_dim': X_train.shape[1]
-    }, 'mlp_model_complete.pth')
-    print("\nModel saved to 'mlp_model_complete.pth'")
+    }, model_path)
+    print(f"\nModel saved to '{model_path}'")
     print("Note: To load this model, use: torch.load('mlp_model_complete.pth', weights_only=False)")
     
     # 导出为 Rust 代码（手动实现，因为 m2cgen 不支持 PyTorch 模型）
@@ -415,9 +420,10 @@ def main(args=None):
         rust_code = generate_mlp_rust_code(best_model, best_params, scaler_mean, scaler_scale, feature_names)
         
         # 写入文件
-        with open('mlp_model.rs', 'w') as f:
+        rust_path = os.path.join(output_dir, f'mlp_model_{args.target}.rs')
+        with open(rust_path, 'w') as f:
             f.write(rust_code)
-        print("Rust code exported to 'mlp_model.rs'")
+        print(f"Rust code exported to '{rust_path}'")
         print("Note: This is a basic implementation. You may need to adjust the code for your specific use case.")
     except Exception as e:
         print(f"Warning: Could not export MLP to Rust code: {e}")
@@ -431,8 +437,9 @@ def main(args=None):
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
     plt.title(f'MLP Predictions vs True Values (R² = {test_r2:.4f})')
-    plt.savefig('mlp_predictions.png', dpi=300, bbox_inches='tight')
-    print("Prediction plot saved to 'mlp_predictions.png'")
+    predictions_path = os.path.join(output_dir, f'mlp_predictions_{args.target}.png')
+    plt.savefig(predictions_path, dpi=300, bbox_inches='tight')
+    print(f"Prediction plot saved to '{predictions_path}'")
     
     # 特征重要性（使用排列重要性）
     print("\nComputing permutation importance...")
@@ -476,8 +483,14 @@ def main(args=None):
     plt.xlabel('Permutation Importance (MSE increase)')
     plt.title('MLP Feature Importance (Permutation)')
     plt.tight_layout()
-    plt.savefig('mlp_feature_importance.png', dpi=300, bbox_inches='tight')
-    print("Feature importance plot saved to 'mlp_feature_importance.png'")
+    importance_path = os.path.join(output_dir, f'mlp_permutation_importance_{args.target}.png')
+    plt.savefig(importance_path, dpi=300, bbox_inches='tight')
+    print(f"Feature importance plot saved to '{importance_path}'")
+    
+    # 保存 permutation importance 为 CSV
+    perm_csv_path = os.path.join(output_dir, f'permutation_importance_{args.target}.csv')
+    importances_df.to_csv(perm_csv_path, index=False)
+    print(f"Permutation importance CSV saved to '{perm_csv_path}'")
     
     print("\nTraining completed!")
 

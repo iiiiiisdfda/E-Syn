@@ -58,7 +58,7 @@ def process_circuits_parallel(i):
     sys.path.append("..")
     import run
     from CircuitParser import CircuitParser
-    from eqn_feature_extractor import EqnFeatureExtractor
+    from sexpr_feature_extractor import SExprFeatureExtractor
     
     try:
         parser = CircuitParser(
@@ -71,14 +71,14 @@ def process_circuits_parallel(i):
         os.system(
             f"analyzer/target/release/analyzer aigfuzz/simple_circuit_{i}.sexpr {i} > aigfuzz/simple_circuit_{i}.data 2>&1")
         
-        # 使用 EqnFeatureExtractor 提取 graph 特征（避免 networkx 版本问题）
-        processed_eqn_file = f"aigfuzz/simple_circuit_{i}_processed.eqn"
-        if os.path.exists(processed_eqn_file):
+        # 使用 SExprFeatureExtractor 提取 graph 特征
+        sexpr_file = f"aigfuzz/simple_circuit_{i}.sexpr"
+        if os.path.exists(sexpr_file):
             try:
-                extractor = EqnFeatureExtractor()
-                # 先解析 EQN 文件
-                extractor.parse_eqn_file(processed_eqn_file)
-                # 然后提取 graph 特征（不需要参数）
+                extractor = SExprFeatureExtractor()
+                # 先解析 S-expression 文件
+                extractor.parse_sexpr_file(sexpr_file)
+                # 然后提取 graph 特征
                 graph_features = extractor.extract_graph_features()
                 
                 # 只保存 graph 相关的特征
@@ -187,8 +187,12 @@ def parse_data(file_count):
     graph_columns = []
     if 'graph_density' in df.columns:
         graph_columns.append('graph_density')
-    if 'graph_edge_count' in df.columns:
-        graph_columns.append('graph_edge_count')
+    if 'graph_edges' in df.columns:
+        graph_columns.append('graph_edges')
+    if 'graph_nodes' in df.columns:
+        graph_columns.append('graph_nodes')
+    if 'avg_degree' in df.columns:
+        graph_columns.append('avg_degree')
     
     # 添加其他列
     other_columns = ['lev', 'power', 'area', 'delay']

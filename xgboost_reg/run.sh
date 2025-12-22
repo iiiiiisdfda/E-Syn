@@ -10,9 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # 解析命令行参数
-DATA_PATH="../sym_reg/new_50000.csv"
+DATA_PATH="../sym_reg/graph50000new.csv"
 TARGET="area"
-EVAL_DATA_PATH="../sym_reg/new_10000.csv"
+EVAL_DATA_PATH="../sym_reg/graph5000new.csv"
 SKIP_COMPARISON=false
 USE_CPU=false
 

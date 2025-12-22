@@ -22,7 +22,7 @@ def r(y_true, y_pred):
 
 def main():
     parser = argparse.ArgumentParser(description='Train XGBoost model')
-    parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', help='Path to data file')
+    parser.add_argument('--data', type=str, default='../sym_reg/graph50000.csv', help='Path to data file')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
     
@@ -52,7 +52,11 @@ def main():
     # 提取特征和目标
     # 明确排除目标变量和相关列，避免数据泄漏
     # 排除：lev, power, area, delay, gates, cap, and_gates
-    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
+    # 以及以下特征：total_nodes, max_logic_depth, num_internal_nodes, count_const1,
+    # graph_nodes, has_constants, count_const0, num_equations, avg_logic_depth,
+    # num_inputs, max_fanin, max_fanout, variable_reuse_rate, input_usage_rate
+    exclude_cols = [
+        'lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates'    ]
     # 只保留存在的列（避免某些列不存在时报错）
     exclude_cols = [col for col in exclude_cols if col in df.columns]
     feature_cols = [col for col in df.columns if col not in exclude_cols]
@@ -101,7 +105,7 @@ def main():
     print("Best parameters found:", best_params)
 
     # 创建输出文件夹
-    output_dir = f'xgb_data'
+    output_dir = f'xgb_data_2'
     os.makedirs(output_dir, exist_ok=True)
     
     # Train the model with the best parameters on the entire dataset for feature importance
