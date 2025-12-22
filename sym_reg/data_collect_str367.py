@@ -37,7 +37,7 @@ def run_generate_eqn_parallel(i):
     """并行处理单个电路的 EQN 生成"""
     import random
     in_num = random.randint(5, 10)
-    out_num = random.randint(5, 10)
+    out_num = random.randint(10, 20)
     node_num = random.randint(10, 20)
     # node_num = out_num * 2
     os.system(
@@ -183,24 +183,39 @@ def parse_data_project(file_count):
     print("---------------------Parsing Data Project: EQN Features + Stats---------------------")
     
     # 导入特征提取器
-    from eqn_feature_extractor import EqnFeatureExtractor
+    # from eqn_feature_extractor import EqnFeatureExtractor
     
-    extractor = EqnFeatureExtractor()
+    # extractor = EqnFeatureExtractor()
+
+    from sexpr_feature_extractor import SExprFeatureExtractor
+    extractor = SExprFeatureExtractor()
     
     def parse_single_circuit(i):
         """解析单个电路的特征和映射结果"""
         result = {}
         
-        # 1. 从 EQN 文件提取特征
-        eqn_file = f"aigfuzz/simple_circuit_{i}_processed.eqn"
-        if os.path.exists(eqn_file):
+
+        # 1. 从 S-expression 文件提取特征
+        sexpr_file = f"aigfuzz/simple_circuit_{i}.sexpr"
+        if os.path.exists(sexpr_file):
             try:
-                eqn_features = extractor.extract_all_features(eqn_file)
-                result.update(eqn_features)
+                sexpr_features = extractor.extract_all_features(sexpr_file)
+                result.update(sexpr_features)
             except Exception as e:
-                print(f"Warning: Failed to extract features from {eqn_file}: {e}")
+                print(f"Warning: Failed to extract features from {sexpr_file}: {e}")
         else:
-            print(f"Warning: {eqn_file} not found")
+            print(f"Warning: {sexpr_file} not found")
+        
+        # # 1. 从 EQN 文件提取特征
+        # eqn_file = f"aigfuzz/simple_circuit_{i}_processed.eqn"
+        # if os.path.exists(eqn_file):
+        #     try:
+        #         eqn_features = extractor.extract_all_features(eqn_file)
+        #         result.update(eqn_features)
+        #     except Exception as e:
+        #         print(f"Warning: Failed to extract features from {eqn_file}: {e}")
+        # else:
+        #     print(f"Warning: {eqn_file} not found")
         
         # 2. 从 stats 文件提取映射结果
         stats_file = f"aigfuzz/simple_circuit_{i}.stats"

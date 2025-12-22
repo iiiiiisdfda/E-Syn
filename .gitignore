@@ -158,3 +158,6 @@ res_visualization/*.pdf
 res_visualization/extractor_compare/
 res_visualization/pareto/
 res_visualization/pareto_old/
+
+*.png
+*.md

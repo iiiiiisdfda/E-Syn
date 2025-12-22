@@ -120,11 +120,11 @@ fn make_rules_enhance() -> Vec<Rewrite<Prop, ConstantFold>> {
     // XOR theorems
     rws.extend(rewrite!("xor-identity1"; "(^ ?b 0)" <=> "?b"));
     rws.extend(rewrite!("xor-identity2"; "(^ ?b 1)" <=> "(! ?b)"));
-    rws.extend(rewrite!("xor-self-inverse"; "(^ ?b ?b)" <=> "0"));
-    rws.extend(rewrite!("xor-complement"; "(^ ?b (! ?b))" <=> "1"));
+    rws.push(rewrite!("xor-self-inverse"; "(^ ?b ?b)" => "0"));
+    rws.push(rewrite!("xor-complement"; "(^ ?b (! ?b))" => "1"));
     rws.extend(rewrite!("xor-commutativity"; "(^ ?b ?c)" <=> "(^ ?c ?b)"));
     rws.extend(rewrite!("xor-associativity"; "(^(^ ?b ?c) ?d)" <=> "(^ ?b (^ ?c ?d))"));
-    rws.extend(rewrite!("xor-double"; "(^(^ ?b ?c) ?c)" <=> "?b"));
+    rws.push(rewrite!("xor-double"; "(^(^ ?b ?c) ?c)" => "?b"));
     // XOR definition: X ^ Y = (!X & Y) | (X & !Y)
     rws.extend(rewrite!("xor-definition1"; "(^ ?b ?c)" <=> "(+ (* (! ?b) ?c) (* ?b (! ?c)))"));
     // XOR alternative definition: X ^ Y = (X | Y) & (!(X & Y))
@@ -573,6 +573,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     let mut contents = String::new();
     input_file.read_to_string(&mut contents)?;
     let expr: RecExpr<Prop> = contents.parse().unwrap();
+    println!("input expression: {}", expr.to_string());
     let mut egraphin = EGraph::new(ConstantFold {});
     egraphin.add_expr(&expr);
     //egraphin.dot().to_png("./image/fooin.png").unwrap();
