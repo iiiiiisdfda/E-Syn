@@ -6,7 +6,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.inspection import permutation_importance
 import matplotlib.pyplot as plt
-import joblib
 import os
 import argparse
 import m2cgen as m2c
@@ -151,13 +150,17 @@ def main():
     }).sort_values('importance', ascending=False)
     print(feature_importance)
     
+    # 创建输出文件夹
+    output_dir = f'rf_data'
+    os.makedirs(output_dir, exist_ok=True)
+    
     # 绘制特征重要性
     plt.figure(figsize=(10, 6))
     plt.barh(feature_importance['feature'], feature_importance['importance'])
     plt.xlabel('Importance')
     plt.title('Random Forest Feature Importance')
     plt.tight_layout()
-    plt.savefig(f'rf_feature_importance_{args.target}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'rf_feature_importance_{args.target}.png'), dpi=300, bbox_inches='tight')
     print("\nFeature importance plot saved to 'rf_feature_importance.png'")
     
     # Permutation Importance
@@ -183,8 +186,19 @@ def main():
     ax.axvline(x=0, color="k", linestyle="--")
     ax.set_xlabel("Decrease in accuracy score")
     fig.tight_layout()
-    fig.savefig(f'rf_permutation_importance_{args.target}.png', dpi=300, bbox_inches='tight')
+    fig.savefig(os.path.join(output_dir, f'rf_permutation_importance_{args.target}.png'), dpi=300, bbox_inches='tight')
     print("Permutation importance plot saved to 'rf_permutation_importance.png'")
+    
+    # 保存 Permutation Importance 为 CSV
+    perm_importance_df = pd.DataFrame({
+        'feature': df_columns_sorted,
+        'importance_mean': perm_result.importances_mean[sorted_importances_idx],
+        'importance_std': perm_result.importances_std[sorted_importances_idx]
+    })
+    perm_importance_df = perm_importance_df.sort_values('importance_mean', ascending=False)
+    perm_csv_filename = os.path.join(output_dir, f'rf_permutation_importance_{args.target}.csv')
+    perm_importance_df.to_csv(perm_csv_filename, index=False)
+    print(f"Permutation importance CSV saved to '{perm_csv_filename}'")
     
     # 绘制预测 vs 真实值
     plt.figure(figsize=(10, 6))
@@ -194,20 +208,8 @@ def main():
     plt.ylabel('Predicted Values')
     plt.title(f'Random Forest Predictions vs True Values (R² = {test_r2:.4f})')
     plt.tight_layout()
-    plt.savefig(f'rf_predictions_{args.target}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'rf_predictions_{args.target}.png'), dpi=300, bbox_inches='tight')
     print("Predictions plot saved to 'rf_predictions.png'")
-    
-    # 保存模型
-    model_filename = f'rf_best_model_{args.target}.pkl'
-    joblib.dump({
-        'model': best_model,
-        'best_params': best_params,
-        'feature_names': feature_names,
-        'target': args.target,
-        'input_dim': X.shape[1]
-    }, model_filename)
-    print(f"\nModel saved to '{model_filename}'")
-    print("To load the model, use: joblib.load('rf_best_model.pkl')")
     
     # 导出为 Rust 代码（用于 Rust 项目）
     try:
@@ -215,12 +217,25 @@ def main():
         code = m2c.export_to_rust(best_model)
         
         # write code in rf_model.rs
-        rust_filename = f'rf_model_{args.target}.rs'
+        rust_filename = os.path.join(output_dir, f'rf_model_{args.target}.rs')
         with open(rust_filename, 'w') as f:
             f.write(code)
         print(f"Rust code exported to '{rust_filename}'")
     except Exception as e:
         print(f"Warning: Could not export to Rust code: {e}")
+    
+    # 导出为 Python 代码（用于 Python 加载）
+    try:
+        print("\nExporting model to Python code...")
+        py_code = m2c.export_to_python(best_model)
+        
+        # write code in rf_model.py
+        py_filename = os.path.join(output_dir, f'rf_model_{args.target}.py')
+        with open(py_filename, 'w') as f:
+            f.write(py_code)
+        print(f"Python code exported to '{py_filename}'")
+    except Exception as e:
+        print(f"Warning: Could not export to Python code: {e}")
     
     print("\n" + "="*80)
     print("Training completed successfully!")

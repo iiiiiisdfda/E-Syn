@@ -183,17 +183,6 @@ else
     echo "  ✗ xgb_best_model_${TARGET}.model (not found)"
 fi
 
-if [ -f "rf_best_model_${TARGET}.pkl" ]; then
-    echo "  ✓ rf_best_model_${TARGET}.pkl"
-else
-    echo "  ✗ rf_best_model_${TARGET}.pkl (not found)"
-fi
-
-if [ -f "lgbm_best_model_${TARGET}.pkl" ]; then
-    echo "  ✓ lgbm_best_model_${TARGET}.pkl"
-else
-    echo "  ✗ lgbm_best_model_${TARGET}.pkl (not found)"
-fi
 
 echo ""
 echo "=========================================="

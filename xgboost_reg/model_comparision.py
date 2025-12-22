@@ -2,12 +2,11 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import cross_val_score, KFold, GridSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 import lightgbm as lgb
-import joblib
 import os
 import argparse
 import warnings
@@ -165,63 +164,15 @@ def main():
     print(f"Data shape: {data.shape}")
     print(f"Data columns: {data.columns.tolist()}")
     
-    # 首先尝试从已保存的模型中获取特征名称
-    # 这样可以确保使用与训练时相同的特征集和顺序
-    model_feature_names = None
-    
-    # 尝试从 RF 或 LightGBM 模型中获取特征名称
-    model_paths = [f'rf_best_model_{args.target}.pkl', f'lgbm_best_model_{args.target}.pkl']
-    for model_path in model_paths:
-        if os.path.exists(model_path):
-            try:
-                checkpoint = joblib.load(model_path)
-                if 'feature_names' in checkpoint:
-                    model_feature_names = checkpoint['feature_names']
-                    print(f"\nFound feature names from {model_path}: {len(model_feature_names)} features")
-                    break
-            except Exception as e:
-                print(f"Warning: Could not load {model_path}: {e}")
-                continue
-    
-    # 如果没有找到保存的特征名称，则从数据中提取（排除目标变量和相关列）
-    if model_feature_names is None:
-        print("\nNo saved feature names found. Extracting features from data...")
-        # 排除：lev, power, area, delay, gates, cap, and_gates
-        exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
-        exclude_cols = [col for col in exclude_cols if col in data.columns]
-        feature_cols = [col for col in data.columns if col not in exclude_cols]
-        print(f"Excluded columns: {exclude_cols}")
-        print(f"Final feature count: {len(feature_cols)}")
-        print(f"Feature columns: {feature_cols}")
-    else:
-        # 使用保存的特征名称，但需要验证这些特征在数据中存在
-        missing_features = [f for f in model_feature_names if f not in data.columns]
-        if missing_features:
-            print(f"\nWarning: The following features from saved model are missing in data: {missing_features}")
-            print("This may cause errors. Please ensure the data file matches the training data.")
-        
-        feature_cols = [f for f in model_feature_names if f in data.columns]
-        if len(feature_cols) != len(model_feature_names):
-            print(f"\nWarning: Expected {len(model_feature_names)} features, but only {len(feature_cols)} found in data.")
-            print("Missing features:", [f for f in model_feature_names if f not in data.columns])
-        
-        print(f"\nUsing feature names from saved model: {len(feature_cols)} features")
-        print(f"Feature columns: {feature_cols}")
-    
-    # 确保特征顺序与模型期望的一致
-    # 如果使用了保存的特征名称，验证特征数量是否匹配
-    if model_feature_names is not None:
-        if len(feature_cols) != len(model_feature_names):
-            print(f"\n❌ ERROR: Feature count mismatch!")
-            print(f"   Model expects {len(model_feature_names)} features")
-            print(f"   But only {len(feature_cols)} features found in data")
-            print(f"   Missing features: {[f for f in model_feature_names if f not in data.columns]}")
-            print(f"\n   This usually means:")
-            print(f"   1. The model was trained with different features")
-            print(f"   2. The data file doesn't match the training data")
-            print(f"   3. You need to retrain the models with the updated feature exclusion list")
-            print(f"\n   Please retrain all models using the updated training scripts.")
-            return
+    # 从数据中提取特征（排除目标变量和相关列）
+    print("\nExtracting features from data...")
+    # 排除：lev, power, area, delay, gates, cap, and_gates
+    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
+    exclude_cols = [col for col in exclude_cols if col in data.columns]
+    feature_cols = [col for col in data.columns if col not in exclude_cols]
+    print(f"Excluded columns: {exclude_cols}")
+    print(f"Final feature count: {len(feature_cols)}")
+    print(f"Feature columns: {feature_cols}")
     
     X = data[feature_cols].values
     # 选择目标变量
@@ -248,104 +199,163 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     
-    # 1. XGBoost - 加载预训练模型并在测试集上评估
+    # 1. XGBoost - 从 Python 代码或模型文件加载
     print("\n[1/3] XGBoost")
-    xgb_model_path = f'xgb_best_model_{args.target}.model'
-    if os.path.exists(xgb_model_path):
-        print(f"  Loading pre-trained XGBoost model from {xgb_model_path}...")
-        models['XGBoost'] = xgb.XGBRegressor()
-        models['XGBoost'].load_model(xgb_model_path)
-        print("  ✓ Model loaded successfully")
-        print("  Evaluating on test set...")
-        y_pred = models['XGBoost'].predict(X)
-        results['XGBoost'] = {
-            'MAE': mean_absolute_error(y, y_pred),
-            'MAPE': mape(y, y_pred),
-            'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-            'R²': r2_score(y, y_pred),
-            'RRSE': rrse(y, y_pred),
-        }
-    else:
-        print(f"  ✗ Error: Pre-trained model not found at {xgb_model_path}")
-        print("  Please train the model first using train.py")
-        return
+    xgb_py_path = f'xgb_data/xgb_model_{args.target}.py'
+    xgb_model_path = f'xgb_data/xgb_best_model_{args.target}.model'
     
-    # 2. Random Forest - 加载预训练模型
-    print("\n[2/3] Random Forest")
-    rf_model_path = f'rf_best_model_{args.target}.pkl'
-    if os.path.exists(rf_model_path):
-        print(f"  Loading pre-trained Random Forest model from {rf_model_path}...")
+    if os.path.exists(xgb_py_path):
+        print(f"  Loading XGBoost model from {xgb_py_path}...")
         try:
-            checkpoint = joblib.load(rf_model_path)
-            models['Random Forest'] = checkpoint['model']
-            print("  ✓ Model loaded successfully")
-            print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
-            # 验证特征数量
-            expected_features = checkpoint.get('input_dim', None)
-            if expected_features is not None:
-                print(f"  Model expects {expected_features} features, data has {X.shape[1]} features")
-                if expected_features != X.shape[1]:
-                    print(f"  ⚠ Warning: Feature count mismatch!")
+            # 动态导入 Python 模型代码
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("xgb_model", xgb_py_path)
+            xgb_model_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(xgb_model_module)
+            
+            # 创建预测函数包装器
+            def xgb_predict(X_data):
+                predictions = []
+                for row in X_data:
+                    pred = xgb_model_module.score(row.tolist())
+                    predictions.append(pred)
+                return np.array(predictions)
+            
+            # 在测试集上评估
             print("  Evaluating on test set...")
-            y_pred = models['Random Forest'].predict(X)
-            results['Random Forest'] = {
+            y_pred = xgb_predict(X)
+            results['XGBoost'] = {
                 'MAE': mean_absolute_error(y, y_pred),
                 'MAPE': mape(y, y_pred),
                 'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
                 'R²': r2_score(y, y_pred),
                 'RRSE': rrse(y, y_pred),
             }
+            print("  ✓ XGBoost model loaded and evaluated")
+        except Exception as e:
+            print(f"  ✗ Error loading XGBoost Python model: {e}")
+            # 尝试使用 .model 文件作为后备
+            if os.path.exists(xgb_model_path):
+                print(f"  Trying to load from {xgb_model_path}...")
+                try:
+                    models['XGBoost'] = xgb.XGBRegressor()
+                    models['XGBoost'].load_model(xgb_model_path)
+                    y_pred = models['XGBoost'].predict(X)
+                    results['XGBoost'] = {
+                        'MAE': mean_absolute_error(y, y_pred),
+                        'MAPE': mape(y, y_pred),
+                        'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                        'R²': r2_score(y, y_pred),
+                        'RRSE': rrse(y, y_pred),
+                    }
+                    print("  ✓ XGBoost model loaded from .model file")
+                except Exception as e2:
+                    print(f"  ✗ Error loading XGBoost model: {e2}")
+                    return
+            else:
+                print(f"  ✗ Error: Model files not found")
+                print("  Please train the model first using train.py")
+                return
+    elif os.path.exists(xgb_model_path):
+        print(f"  Loading pre-trained XGBoost model from {xgb_model_path}...")
+        try:
+            models['XGBoost'] = xgb.XGBRegressor()
+            models['XGBoost'].load_model(xgb_model_path)
+            print("  ✓ Model loaded successfully")
+            print("  Evaluating on test set...")
+            y_pred = models['XGBoost'].predict(X)
+            results['XGBoost'] = {
+                'MAE': mean_absolute_error(y, y_pred),
+                'MAPE': mape(y, y_pred),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                'R²': r2_score(y, y_pred),
+                'RRSE': rrse(y, y_pred),
+            }
+        except Exception as e:
+            print(f"  ✗ Error loading XGBoost model: {e}")
+            return
+    else:
+        print(f"  ✗ Error: Model files not found")
+        print("  Please train the model first using train.py")
+        return
+    
+    # 2. Random Forest - 从 Python 代码加载模型
+    print("\n[2/3] Random Forest")
+    rf_model_path = f'rf_data/rf_model_{args.target}.py'
+    if os.path.exists(rf_model_path):
+        print(f"  Loading Random Forest model from {rf_model_path}...")
+        try:
+            # 动态导入 Python 模型代码
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("rf_model", rf_model_path)
+            rf_model_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(rf_model_module)
+            
+            # 创建预测函数包装器
+            def rf_predict(X_data):
+                predictions = []
+                for row in X_data:
+                    pred = rf_model_module.score(row.tolist())
+                    predictions.append(pred)
+                return np.array(predictions)
+            
+            # 在测试集上评估
+            print("  Evaluating on test set...")
+            y_pred_rf = rf_predict(X)
+            results['Random Forest'] = {
+                'MAE': mean_absolute_error(y, y_pred_rf),
+                'MAPE': mape(y, y_pred_rf),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred_rf)),
+                'R²': r2_score(y, y_pred_rf),
+                'RRSE': rrse(y, y_pred_rf),
+            }
+            print("  ✓ Random Forest model loaded and evaluated")
         except Exception as e:
             print(f"  ✗ Error loading Random Forest model: {e}")
             import traceback
             traceback.print_exc()
-            return
     else:
-        print(f"  ✗ Error: Pre-trained model not found at {rf_model_path}")
-        print("  Please train the model first using RF_train.py or RF_test.py")
-        return
+        print(f"  ✗ Error: Model file not found at {rf_model_path}")
+        print("  Please train the model first using RF_train.py")
     
-    # 3. LightGBM - 加载预训练模型
+    # 3. LightGBM - 从 Python 代码加载模型
     print("\n[3/3] LightGBM")
-    lgbm_model_path = f'lgbm_best_model_{args.target}.pkl'
+    lgbm_model_path = f'lgbm_data/lgbm_model_{args.target}.py'
     if os.path.exists(lgbm_model_path):
-        print(f"  Loading pre-trained LightGBM model from {lgbm_model_path}...")
+        print(f"  Loading LightGBM model from {lgbm_model_path}...")
         try:
-            checkpoint = joblib.load(lgbm_model_path)
-            models['LightGBM'] = checkpoint['model']
-            print("  ✓ Model loaded successfully")
-            print(f"  Best parameters: {checkpoint.get('best_params', 'N/A')}")
-            # 验证特征数量
-            expected_features = checkpoint.get('input_dim', None)
-            if expected_features is not None:
-                print(f"  Model expects {expected_features} features, data has {X.shape[1]} features")
-                if expected_features != X.shape[1]:
-                    print(f"  ⚠ Warning: Feature count mismatch!")
+            # 动态导入 Python 模型代码
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("lgbm_model", lgbm_model_path)
+            lgbm_model_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(lgbm_model_module)
+            
+            # 创建预测函数包装器
+            def lgbm_predict(X_data):
+                predictions = []
+                for row in X_data:
+                    pred = lgbm_model_module.score(row.tolist())
+                    predictions.append(pred)
+                return np.array(predictions)
+            
+            # 在测试集上评估
             print("  Evaluating on test set...")
-            y_pred = models['LightGBM'].predict(X)
+            y_pred_lgb = lgbm_predict(X)
             results['LightGBM'] = {
-                'MAE': mean_absolute_error(y, y_pred),
-                'MAPE': mape(y, y_pred),
-                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-                'R²': r2_score(y, y_pred),
-                'RRSE': rrse(y, y_pred),
+                'MAE': mean_absolute_error(y, y_pred_lgb),
+                'MAPE': mape(y, y_pred_lgb),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred_lgb)),
+                'R²': r2_score(y, y_pred_lgb),
+                'RRSE': rrse(y, y_pred_lgb),
             }
-            # 立即打印结果
-            print(f"  LightGBM Results:")
-            print(f"    MAE:   {results['LightGBM']['MAE']:.4f}")
-            print(f"    MAPE:  {results['LightGBM']['MAPE']:.4f}%")
-            print(f"    RMSE:  {results['LightGBM']['RMSE']:.4f}")
-            print(f"    R²:    {results['LightGBM']['R²']:.4f}")
-            print(f"    RRSE:  {results['LightGBM']['RRSE']:.4f}")
+            print("  ✓ LightGBM model loaded and evaluated")
         except Exception as e:
             print(f"  ✗ Error loading LightGBM model: {e}")
             import traceback
             traceback.print_exc()
-            return
     else:
-        print(f"  ✗ Error: Pre-trained model not found at {lgbm_model_path}")
+        print(f"  ✗ Error: Model file not found at {lgbm_model_path}")
         print("  Please train the model first using LightGBM_train.py")
-        return
     
     # 打印对比结果
     print("\n" + "="*80)

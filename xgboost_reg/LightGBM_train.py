@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import m2cgen as m2c
 import os
 import argparse
-import joblib
 
 # 评估指标函数（与 train.py 保持一致）
 def mape(y_true, y_pred):
@@ -167,6 +166,10 @@ def main():
         columns=df_columns_sorted,
     )
     
+    # 创建输出文件夹
+    output_dir = f'lgbm_data'
+    os.makedirs(output_dir, exist_ok=True)
+    
     # 绘制 Permutation Importance
     fig, ax = plt.subplots(figsize=(10, 6))
     importances.plot.box(vert=False, whis=10, ax=ax)
@@ -174,8 +177,19 @@ def main():
     ax.axvline(x=0, color="k", linestyle="--")
     ax.set_xlabel("Decrease in accuracy score")
     fig.tight_layout()
-    fig.savefig(f'lgbm_permutation_importance_{args.target}.png', dpi=300, bbox_inches='tight')
+    fig.savefig(os.path.join(output_dir, f'lgbm_permutation_importance_{args.target}.png'), dpi=300, bbox_inches='tight')
     print("Permutation importance plot saved to 'lgbm_permutation_importance.png'")
+    
+    # 保存 Permutation Importance 为 CSV
+    perm_importance_df = pd.DataFrame({
+        'feature': df_columns_sorted,
+        'importance_mean': perm_result.importances_mean[sorted_importances_idx],
+        'importance_std': perm_result.importances_std[sorted_importances_idx]
+    })
+    perm_importance_df = perm_importance_df.sort_values('importance_mean', ascending=False)
+    perm_csv_filename = os.path.join(output_dir, f'lgbm_permutation_importance_{args.target}.csv')
+    perm_importance_df.to_csv(perm_csv_filename, index=False)
+    print(f"Permutation importance CSV saved to '{perm_csv_filename}'")
     
     # 绘制预测 vs 真实值
     plt.figure(figsize=(10, 6))
@@ -185,20 +199,8 @@ def main():
     plt.ylabel('Predicted Values')
     plt.title(f'LightGBM Predictions vs True Values (R² = {test_r2:.4f})')
     plt.tight_layout()
-    plt.savefig(f'lgbm_predictions_{args.target}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'lgbm_predictions_{args.target}.png'), dpi=300, bbox_inches='tight')
     print("Predictions plot saved to 'lgbm_predictions.png'")
-    
-    # 保存模型
-    model_filename = f'lgbm_best_model_{args.target}.pkl'
-    joblib.dump({
-        'model': best_model,
-        'best_params': best_params,
-        'feature_names': feature_names,
-        'target': args.target,
-        'input_dim': X_train.shape[1]
-    }, model_filename)
-    print(f"\nModel saved to '{model_filename}'")
-    print("To load the model, use: joblib.load('lgbm_best_model.pkl')")
     
     # 导出为 Rust 代码（用于 Rust 项目）
     try:
@@ -206,12 +208,25 @@ def main():
         code = m2c.export_to_rust(best_model)
         
         # write code in lgbm_model.rs
-        rust_filename = f'lgbm_model_{args.target}.rs'
+        rust_filename = os.path.join(output_dir, f'lgbm_model_{args.target}.rs')
         with open(rust_filename, 'w') as f:
             f.write(code)
         print(f"Rust code exported to '{rust_filename}'")
     except Exception as e:
         print(f"Warning: Could not export to Rust code: {e}")
+    
+    # 导出为 Python 代码（用于 Python 加载）
+    try:
+        print("\nExporting model to Python code...")
+        py_code = m2c.export_to_python(best_model)
+        
+        # write code in lgbm_model.py
+        py_filename = os.path.join(output_dir, f'lgbm_model_{args.target}.py')
+        with open(py_filename, 'w') as f:
+            f.write(py_code)
+        print(f"Python code exported to '{py_filename}'")
+    except Exception as e:
+        print(f"Warning: Could not export to Python code: {e}")
     
     print("\n" + "="*80)
     print("Training completed successfully!")

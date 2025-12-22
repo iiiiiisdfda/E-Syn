@@ -100,10 +100,14 @@ def main():
     best_params = grid_search.best_params_
     print("Best parameters found:", best_params)
 
+    # 创建输出文件夹
+    output_dir = f'xgb_data'
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Train the model with the best parameters on the entire dataset for feature importance
     model_full = xgb.XGBRegressor(**best_params).fit(X_train, y_train)
     plot_importance(model_full)
-    plt.savefig(f'feature_importance_{args.target}.png')
+    plt.savefig(os.path.join(output_dir, f'feature_importance_{args.target}.png'))
 
     # Performing permutation importance
     result = permutation_importance(
@@ -128,7 +132,18 @@ def main():
     ax.set_xlabel("Decrease in accuracy score")
     fig = ax.get_figure()
     fig.tight_layout()
-    fig.savefig(f'permutation_importance_{args.target}.png')
+    fig.savefig(os.path.join(output_dir, f'permutation_importance_{args.target}.png'))
+    
+    # 保存 Permutation Importance 为 CSV
+    perm_importance_df = pd.DataFrame({
+        'feature': df_columns_sorted,
+        'importance_mean': result.importances_mean[sorted_importances_idx],
+        'importance_std': result.importances_std[sorted_importances_idx]
+    })
+    perm_importance_df = perm_importance_df.sort_values('importance_mean', ascending=False)
+    perm_csv_filename = os.path.join(output_dir, f'permutation_importance_{args.target}.csv')
+    perm_importance_df.to_csv(perm_csv_filename, index=False)
+    print(f"Permutation importance CSV saved to '{perm_csv_filename}'")
 
     # Print the best score (mean absolute error)
     best_mape_score = -grid_search.best_score_
@@ -145,18 +160,35 @@ def main():
     print("RMSE (Root Mean Squared Error):", np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
 
     # 保存 XGBoost 模型文件（用于 Python 加载）
-    model_filename = f'xgb_best_model_{args.target}.model'
+    model_filename = os.path.join(output_dir, f'xgb_best_model_{args.target}.model')
     model_full.save_model(model_filename)
     print(f"XGBoost model saved to '{model_filename}'")
 
     # 导出为 Rust 代码（用于 Rust 项目）
-    code = m2c.export_to_rust(model_full)
-
-    # write code in model.rs
-    rust_filename = f'model_{args.target}.rs'
-    with open(rust_filename, 'w') as f:
-        f.write(code)
-    print(f"Rust code exported to '{rust_filename}'")
+    try:
+        print("\nExporting model to Rust code...")
+        code = m2c.export_to_rust(model_full)
+        
+        # write code in model.rs
+        rust_filename = os.path.join(output_dir, f'model_{args.target}.rs')
+        with open(rust_filename, 'w') as f:
+            f.write(code)
+        print(f"Rust code exported to '{rust_filename}'")
+    except Exception as e:
+        print(f"Warning: Could not export to Rust code: {e}")
+    
+    # 导出为 Python 代码（用于 Python 加载）
+    try:
+        print("\nExporting model to Python code...")
+        py_code = m2c.export_to_python(model_full)
+        
+        # write code in xgb_model.py
+        py_filename = os.path.join(output_dir, f'xgb_model_{args.target}.py')
+        with open(py_filename, 'w') as f:
+            f.write(py_code)
+        print(f"Python code exported to '{py_filename}'")
+    except Exception as e:
+        print(f"Warning: Could not export to Python code: {e}")
 
 if __name__ == "__main__":
     main()
