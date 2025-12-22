@@ -87,6 +87,9 @@ abc/demo
 abc/demo.o
 
 sym_reg/aigfuzz
+sym_reg/aigfuzz_large
+sym_reg/aigfuzz_medium
+sym_reg/aigfuzz_small
 sym_reg/hall_of_fame*
 *.pkl
 
