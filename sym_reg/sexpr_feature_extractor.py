@@ -342,6 +342,68 @@ class SExprFeatureExtractor:
         
         return features
     
+    def extract_analyzer_features(self) -> Dict[str, float]:
+        """提取 analyzer 相關特徵（與 data_collect.py 中的特徵對應）"""
+        features = {}
+        
+        # 1. 運算符計數（+, !, *, &）
+        op_counts = self._count_operators(self.root)
+        # 映射到 analyzer 的格式：+ 對應 OR, ! 對應 NOT, * 對應 AND, & 對應 CONCAT
+        features['+'] = float(op_counts.get('+', 0))
+        features['!'] = float(op_counts.get('!', 0))
+        features['*'] = float(op_counts.get('*', 0))
+        features['&'] = float(op_counts.get('&', 0))
+        
+        # 2. ASTSize: AST 中所有節點的總數（包括葉節點和內部節點）
+        def count_all_nodes(node: SExprNode) -> int:
+            """遞歸計算所有節點數（包括葉節點）"""
+            if node.is_leaf:
+                return 1
+            return 1 + sum(count_all_nodes(child) for child in node.children)
+        
+        if self.root:
+            features['ASTSize'] = float(count_all_nodes(self.root))
+        else:
+            features['ASTSize'] = 0.0
+        
+        # 3. ASTDepth: AST 的最大深度（從根節點到最深葉節點的路徑長度）
+        def calculate_depth(node: SExprNode, current_depth: int = 0) -> int:
+            """計算節點深度"""
+            if node.is_leaf:
+                return current_depth
+            if not node.children:
+                return current_depth
+            return max(calculate_depth(child, current_depth + 1) for child in node.children)
+        
+        if self.root:
+            features['ASTDepth'] = float(calculate_depth(self.root))
+        else:
+            features['ASTDepth'] = 0.0
+        
+        # 4. SUM_LIB: 所有運算符的 Liberty 成本總和
+        # Liberty 成本：! = 9, + = 26, * = 22, & = 22 (CONCAT 通常與 AND 類似), ^ = 24
+        liberty_costs = {
+            '!': 9,
+            '+': 26,
+            '*': 22,
+            '&': 22,  # CONCAT 使用與 AND 相同的成本
+            '^': 24
+        }
+        sum_lib = sum(liberty_costs.get(op, 0) * count for op, count in op_counts.items())
+        features['SUM_LIB'] = float(sum_lib)
+        
+        # 5. SUM_NODE: 所有運算符節點的總數（不包括葉節點）
+        sum_node = sum(op_counts.values())
+        features['SUM_NODE'] = float(sum_node)
+        
+        # 6. AVE_LIB: 平均 Liberty 成本
+        if sum_node > 0:
+            features['AVE_LIB'] = float(sum_lib) / float(sum_node)
+        else:
+            features['AVE_LIB'] = 0.0
+        
+        return features
+    
     def extract_all_features(self, filepath: str) -> Dict[str, float]:
         """提取所有特徵"""
         self.parse_sexpr_file(filepath)
@@ -351,6 +413,7 @@ class SExprFeatureExtractor:
         features.update(self.extract_syntactic_features())
         features.update(self.extract_expression_complexity_features())
         features.update(self.extract_graph_features())
+        features.update(self.extract_analyzer_features())  # 添加 analyzer 相關特徵
         
         return features
 

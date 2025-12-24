@@ -36,24 +36,56 @@ def run_aigfuzz(file_count, max_workers=None):
 def run_generate_eqn_parallel(i):
     """并行处理单个电路的 EQN 生成"""
     import random
-    in_num = random.randint(5, 100)
-    out_num = random.randint(10, 200)
-    node_num = random.randint(10, 200)
-    # node_num = out_num * 2
-    os.system(
-        f"python ./generate_eqn.py -o aigfuzz/simple_circuit_{i}.eqn -i {in_num} --outputs {out_num} -n {node_num} 2>&1")
+    import traceback
+    try:
+        # 复杂电路参数（推荐设置）
+        in_num = random.randint(40, 100)      # 输入：20-100（增加输入复杂度）
+        out_num = random.randint(40, 100)    # 输出：50-200（增加输出数量）
+        node_num = random.randint(40, 100)  # 内部节点：100-500（增加电路规模）
+        max_depth = random.randint(5, 10) 
+            
+        ret = os.system(
+            f"python ./generate_eqn.py -o aigfuzz/simple_circuit_{i}.eqn -i {in_num} --outputs {out_num} -n {node_num} --max-depth {max_depth} 2>&1")
+        
+        if ret != 0:
+            print(f"Warning: generate_eqn returned non-zero exit code {ret} for circuit {i}")
+            return False
+        
+        # 检查文件是否成功创建
+        if not os.path.exists(f"aigfuzz/simple_circuit_{i}.eqn"):
+            print(f"Warning: EQN file not created for circuit {i}")
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"Error generating EQN for circuit {i}: {e}")
+        traceback.print_exc()
+        return False
 
 def run_generate_eqn(file_count, max_workers=None):
     if not os.path.exists("aigfuzz"): os.mkdir("aigfuzz")
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
+    # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        list(tqdm(
-            executor.map(run_generate_eqn_parallel, range(file_count)),
-            total=file_count,
-            desc='Running generate eqn'
-        ))
+        futures = {executor.submit(run_generate_eqn_parallel, i): i for i in range(file_count)}
+        
+        results = []
+        for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Running generate eqn'):
+            i = futures[future]
+            try:
+                result = future.result(timeout=600)  # 10分钟超时
+                results.append((i, result))
+            except concurrent.futures.TimeoutError:
+                print(f"Circuit {i} EQN generation timed out after 10 minutes")
+                results.append((i, False))
+            except Exception as e:
+                print(f"Circuit {i} EQN generation raised an exception: {e}")
+                results.append((i, False))
+        
+        success_count = sum(1 for _, result in results if result)
+        print(f"\nEQN generation complete: {success_count}/{file_count} circuits generated successfully")
 
 def load_circuits_parallel(i):
     """并行处理单个电路的加载和转换"""
@@ -75,67 +107,189 @@ def load_circuits(file_count, max_workers=None):
 
 def load_eqn_parallel(i):
     """并行处理单个电路的 EQN 加载和转换"""
-    os.system(
-        f"{ABC_PATH} -c \"read_eqn aigfuzz/simple_circuit_{i}.eqn; strash; write_aiger aigfuzz/simple_circuit_{i}.aig\" 2>&1")
+    import traceback
+    try:
+        eqn_file = f"aigfuzz/simple_circuit_{i}.eqn"
+        if not os.path.exists(eqn_file):
+            print(f"Warning: {eqn_file} not found for circuit {i}, skipping")
+            return False
+        
+        ret = os.system(
+            f"{ABC_PATH} -c \"read_eqn {eqn_file}; strash; write_aiger aigfuzz/simple_circuit_{i}.aig\" 2>&1")
+        
+        if ret != 0:
+            print(f"Warning: ABC load_eqn returned non-zero exit code {ret} for circuit {i}")
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"Error loading EQN for circuit {i}: {e}")
+        traceback.print_exc()
+        return False
 
 def load_eqn(file_count, max_workers=None):
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
+    # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        list(tqdm(
-            executor.map(load_eqn_parallel, range(file_count)),
-            total=file_count,
-            desc='Loading eqn in abc and convert to aig'
-        ))
+        futures = {executor.submit(load_eqn_parallel, i): i for i in range(file_count)}
+        
+        results = []
+        for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Loading eqn in abc and convert to aig'):
+            i = futures[future]
+            try:
+                result = future.result(timeout=600)  # 10分钟超时
+                results.append((i, result))
+            except concurrent.futures.TimeoutError:
+                print(f"Circuit {i} load_eqn timed out after 10 minutes")
+                results.append((i, False))
+            except Exception as e:
+                print(f"Circuit {i} load_eqn raised an exception: {e}")
+                results.append((i, False))
+        
+        success_count = sum(1 for _, result in results if result)
+        print(f"\nLoad EQN complete: {success_count}/{file_count} circuits loaded successfully")
 
 def process_circuits_parallel(i):
     """并行处理单个电路的分析"""
     # 在子进程中导入模块
     import sys
+    import traceback
     sys.path.append("..")
-    import run
-    from CircuitParser import CircuitParser
     
     try:
-        parser = CircuitParser(
-            f"aigfuzz/simple_circuit_{i}.eqn", f"aigfuzz/simple_circuit_{i}_processed.eqn")
-        parser.process()
-        with open(f"aigfuzz/simple_circuit_{i}_processed.eqn", "r") as myfile:
-            data = myfile.readlines()
-        _ = run.conver_to_sexpr(
-            data, multiple_output=True, output_file_path=f"aigfuzz/simple_circuit_{i}.sexpr")
-        os.system(
-            f"analyzer/target/release/analyzer aigfuzz/simple_circuit_{i}.sexpr {i} > aigfuzz/simple_circuit_{i}.data 2>&1")
+        import run
+        from CircuitParser import CircuitParser
+        
+        # 检查输入文件是否存在
+        eqn_file = f"aigfuzz/simple_circuit_{i}.eqn"
+        if not os.path.exists(eqn_file):
+            print(f"Warning: {eqn_file} not found for circuit {i}")
+            return False
+        
+        # 1. CircuitParser 处理
+        try:
+            parser = CircuitParser(
+                eqn_file, f"aigfuzz/simple_circuit_{i}_processed.eqn")
+            parser.process()
+        except Exception as e:
+            print(f"Error in CircuitParser for circuit {i}: {e}")
+            traceback.print_exc()
+            return False
+        
+        # 检查处理后的文件是否存在
+        processed_eqn_file = f"aigfuzz/simple_circuit_{i}_processed.eqn"
+        if not os.path.exists(processed_eqn_file):
+            print(f"Warning: {processed_eqn_file} not created for circuit {i}")
+            return False
+        
+        # 2. 转换为 S-expression
+        try:
+            with open(processed_eqn_file, "r") as myfile:
+                data = myfile.readlines()
+            _ = run.conver_to_sexpr(
+                data, multiple_output=True, output_file_path=f"aigfuzz/simple_circuit_{i}.sexpr")
+        except Exception as e:
+            print(f"Error converting to S-expression for circuit {i}: {e}")
+            traceback.print_exc()
+            return False
+        
+        # 检查 S-expression 文件是否存在
+        sexpr_file = f"aigfuzz/simple_circuit_{i}.sexpr"
+        if not os.path.exists(sexpr_file):
+            print(f"Warning: {sexpr_file} not created for circuit {i}")
+            return False
+        
+        # 3. 运行 analyzer
+        try:
+            ret = os.system(
+                f"analyzer/target/release/analyzer aigfuzz/simple_circuit_{i}.sexpr {i} > aigfuzz/simple_circuit_{i}.data 2>&1")
+            if ret != 0:
+                print(f"Warning: analyzer returned non-zero exit code {ret} for circuit {i}")
+                # 不返回 False，因为 analyzer 可能输出了一些数据
+        except Exception as e:
+            print(f"Error running analyzer for circuit {i}: {e}")
+            traceback.print_exc()
+            return False
+        
+        return True
     except Exception as e:
-        print(f"Error processing circuit {i}: {e}")
+        print(f"Unexpected error processing circuit {i}: {e}")
+        traceback.print_exc()
+        return False
 
 def process_circuits(file_count, max_workers=None):
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
+    # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        list(tqdm(
-            executor.map(process_circuits_parallel, range(file_count)),
-            total=file_count,
-            desc='Processing circuits for analyzer'
-        ))
+        futures = {executor.submit(process_circuits_parallel, i): i for i in range(file_count)}
+        
+        results = []
+        for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Processing circuits for analyzer'):
+            i = futures[future]
+            try:
+                result = future.result(timeout=600)  # 10分钟超时
+                results.append((i, result))
+            except concurrent.futures.TimeoutError:
+                print(f"Circuit {i} timed out after 10 minutes")
+                results.append((i, False))
+            except Exception as e:
+                print(f"Circuit {i} raised an exception: {e}")
+                results.append((i, False))
+        
+        # 统计成功和失败的数量
+        success_count = sum(1 for _, result in results if result)
+        print(f"\nProcessing complete: {success_count}/{file_count} circuits processed successfully")
 
 def run_abc_parallel(i):
     """并行处理单个电路的 ABC 统计提取"""
-    os.system(
-        f"{ABC_PATH} -c \"read_eqn aigfuzz/simple_circuit_{i}_processed.eqn; strash; dch -f; print_stats -p; read_lib ../asap7_clean.lib ; map ; topo; upsize; dnsize; stime; \" > aigfuzz/simple_circuit_{i}.stats 2>&1")
+    import traceback
+    try:
+        processed_eqn_file = f"aigfuzz/simple_circuit_{i}_processed.eqn"
+        if not os.path.exists(processed_eqn_file):
+            print(f"Warning: {processed_eqn_file} not found for circuit {i}, skipping ABC")
+            return False
+        
+        ret = os.system(
+            f"{ABC_PATH} -c \"read_eqn {processed_eqn_file}; strash; dch -f; print_stats -p; read_lib ../asap7_clean.lib ; map ; topo; upsize; dnsize; stime; \" > aigfuzz/simple_circuit_{i}.stats 2>&1")
+        
+        if ret != 0:
+            print(f"Warning: ABC returned non-zero exit code {ret} for circuit {i}")
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"Error running ABC for circuit {i}: {e}")
+        traceback.print_exc()
+        return False
 
 def run_abc(file_count, max_workers=None):
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
+    # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        list(tqdm(
-            executor.map(run_abc_parallel, range(file_count)),
-            total=file_count,
-            desc='Running abc to extract stats'
-        ))
+        futures = {executor.submit(run_abc_parallel, i): i for i in range(file_count)}
+        
+        results = []
+        for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Running abc to extract stats'):
+            i = futures[future]
+            try:
+                result = future.result(timeout=1200)  # 20分钟超时（ABC 可能需要更长时间）
+                results.append((i, result))
+            except concurrent.futures.TimeoutError:
+                print(f"Circuit {i} ABC timed out after 20 minutes")
+                results.append((i, False))
+            except Exception as e:
+                print(f"Circuit {i} ABC raised an exception: {e}")
+                results.append((i, False))
+        
+        # 统计成功和失败的数量
+        success_count = sum(1 for _, result in results if result)
+        print(f"\nABC processing complete: {success_count}/{file_count} circuits processed successfully")
 
 
 def parse_data(file_count):
@@ -308,7 +462,7 @@ if __name__ == "__main__":
     # 可以通过命令行参数设置并行度，默认使用 CPU 核心数
     import argparse
     parser = argparse.ArgumentParser(description='Collect circuit data with parallel processing')
-    parser.add_argument('--file_count', type=int, default=5, help='Number of circuits to process')
+    parser.add_argument('--file_count', type=int, default=1000, help='Number of circuits to process')
     parser.add_argument('--max_workers', type=int, default=None, help='Maximum number of parallel workers (default: CPU count)')
     args = parser.parse_args()
     
