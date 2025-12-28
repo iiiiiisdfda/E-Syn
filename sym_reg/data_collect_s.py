@@ -228,7 +228,7 @@ if __name__ == "__main__":
     # 可以通过命令行参数设置并行度，默认使用 CPU 核心数
     import argparse
     parser = argparse.ArgumentParser(description='Collect circuit data with parallel processing')
-    parser.add_argument('--file_count', type=int, default=50000, help='Number of circuits to process')
+    parser.add_argument('--file_count', type=int, default=100000, help='Number of circuits to process')
     parser.add_argument('--max_workers', type=int, default=None, help='Maximum number of parallel workers (default: CPU count)')
     args = parser.parse_args()
     

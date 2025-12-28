@@ -39,10 +39,10 @@ def run_generate_eqn_parallel(i):
     import traceback
     try:
         # 复杂电路参数（推荐设置）
-        in_num = random.randint(40, 100)      # 输入：20-100（增加输入复杂度）
-        out_num = random.randint(40, 100)    # 输出：50-200（增加输出数量）
-        node_num = random.randint(40, 100)  # 内部节点：100-500（增加电路规模）
-        max_depth = random.randint(5, 10) 
+        in_num = random.randint(15, 30)      # 输入：20-100（增加输入复杂度）
+        out_num = random.randint(15, 30)    # 输出：50-200（增加输出数量）
+        node_num = random.randint(15, 30)  # 内部节点：100-500（增加电路规模）
+        max_depth = random.randint(3, 5) 
             
         ret = os.system(
             f"python ./generate_eqn.py -o aigfuzz/simple_circuit_{i}.eqn -i {in_num} --outputs {out_num} -n {node_num} --max-depth {max_depth} 2>&1")
@@ -62,27 +62,32 @@ def run_generate_eqn_parallel(i):
         traceback.print_exc()
         return False
 
-def run_generate_eqn(file_count, max_workers=None):
+def run_generate_eqn(file_count, max_workers=None, start_idx=0):
     if not os.path.exists("aigfuzz"): os.mkdir("aigfuzz")
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
     # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(run_generate_eqn_parallel, i): i for i in range(file_count)}
+        futures = {executor.submit(run_generate_eqn_parallel, start_idx + i): start_idx + i for i in range(file_count)}
         
         results = []
         for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Running generate eqn'):
-            i = futures[future]
+            circuit_idx = futures[future]
             try:
                 result = future.result(timeout=600)  # 10分钟超时
-                results.append((i, result))
+                results.append((circuit_idx, result))
             except concurrent.futures.TimeoutError:
-                print(f"Circuit {i} EQN generation timed out after 10 minutes")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} EQN generation timed out after 10 minutes")
+                results.append((circuit_idx, False))
+            except concurrent.futures.process.BrokenProcessPool:
+                print(f"Circuit {circuit_idx} EQN generation: Process pool was broken (process terminated abruptly)")
+                results.append((circuit_idx, False))
             except Exception as e:
-                print(f"Circuit {i} EQN generation raised an exception: {e}")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} EQN generation raised an exception: {e}")
+                import traceback
+                traceback.print_exc()
+                results.append((circuit_idx, False))
         
         success_count = sum(1 for _, result in results if result)
         print(f"\nEQN generation complete: {success_count}/{file_count} circuits generated successfully")
@@ -127,26 +132,31 @@ def load_eqn_parallel(i):
         traceback.print_exc()
         return False
 
-def load_eqn(file_count, max_workers=None):
+def load_eqn(file_count, max_workers=None, start_idx=0):
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
     # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(load_eqn_parallel, i): i for i in range(file_count)}
+        futures = {executor.submit(load_eqn_parallel, start_idx + i): start_idx + i for i in range(file_count)}
         
         results = []
         for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Loading eqn in abc and convert to aig'):
-            i = futures[future]
+            circuit_idx = futures[future]
             try:
                 result = future.result(timeout=600)  # 10分钟超时
-                results.append((i, result))
+                results.append((circuit_idx, result))
             except concurrent.futures.TimeoutError:
-                print(f"Circuit {i} load_eqn timed out after 10 minutes")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} load_eqn timed out after 10 minutes")
+                results.append((circuit_idx, False))
+            except concurrent.futures.process.BrokenProcessPool:
+                print(f"Circuit {circuit_idx} load_eqn: Process pool was broken (process terminated abruptly)")
+                results.append((circuit_idx, False))
             except Exception as e:
-                print(f"Circuit {i} load_eqn raised an exception: {e}")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} load_eqn raised an exception: {e}")
+                import traceback
+                traceback.print_exc()
+                results.append((circuit_idx, False))
         
         success_count = sum(1 for _, result in results if result)
         print(f"\nLoad EQN complete: {success_count}/{file_count} circuits loaded successfully")
@@ -219,26 +229,31 @@ def process_circuits_parallel(i):
         traceback.print_exc()
         return False
 
-def process_circuits(file_count, max_workers=None):
+def process_circuits(file_count, max_workers=None, start_idx=0):
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
     # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(process_circuits_parallel, i): i for i in range(file_count)}
+        futures = {executor.submit(process_circuits_parallel, start_idx + i): start_idx + i for i in range(file_count)}
         
         results = []
         for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Processing circuits for analyzer'):
-            i = futures[future]
+            circuit_idx = futures[future]
             try:
                 result = future.result(timeout=600)  # 10分钟超时
-                results.append((i, result))
+                results.append((circuit_idx, result))
             except concurrent.futures.TimeoutError:
-                print(f"Circuit {i} timed out after 10 minutes")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} timed out after 10 minutes")
+                results.append((circuit_idx, False))
+            except concurrent.futures.process.BrokenProcessPool:
+                print(f"Circuit {circuit_idx}: Process pool was broken (process terminated abruptly)")
+                results.append((circuit_idx, False))
             except Exception as e:
-                print(f"Circuit {i} raised an exception: {e}")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} raised an exception: {e}")
+                import traceback
+                traceback.print_exc()
+                results.append((circuit_idx, False))
         
         # 统计成功和失败的数量
         success_count = sum(1 for _, result in results if result)
@@ -266,26 +281,31 @@ def run_abc_parallel(i):
         traceback.print_exc()
         return False
 
-def run_abc(file_count, max_workers=None):
+def run_abc(file_count, max_workers=None, start_idx=0):
     if max_workers is None:
         max_workers = min(64, os.cpu_count() or 1)
     
     # 使用 submit 而不是 map，以便更好地处理异常
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(run_abc_parallel, i): i for i in range(file_count)}
+        futures = {executor.submit(run_abc_parallel, start_idx + i): start_idx + i for i in range(file_count)}
         
         results = []
         for future in tqdm(concurrent.futures.as_completed(futures), total=file_count, desc='Running abc to extract stats'):
-            i = futures[future]
+            circuit_idx = futures[future]
             try:
                 result = future.result(timeout=1200)  # 20分钟超时（ABC 可能需要更长时间）
-                results.append((i, result))
+                results.append((circuit_idx, result))
             except concurrent.futures.TimeoutError:
-                print(f"Circuit {i} ABC timed out after 20 minutes")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} ABC timed out after 20 minutes")
+                results.append((circuit_idx, False))
+            except concurrent.futures.process.BrokenProcessPool:
+                print(f"Circuit {circuit_idx} ABC: Process pool was broken (process terminated abruptly)")
+                results.append((circuit_idx, False))
             except Exception as e:
-                print(f"Circuit {i} ABC raised an exception: {e}")
-                results.append((i, False))
+                print(f"Circuit {circuit_idx} ABC raised an exception: {e}")
+                import traceback
+                traceback.print_exc()
+                results.append((circuit_idx, False))
         
         # 统计成功和失败的数量
         success_count = sum(1 for _, result in results if result)
@@ -332,9 +352,20 @@ def parse_data(file_count):
     df.to_csv("simple_circuit_analysis_large.csv", index=False)
 
 
-def parse_data_project(file_count):
-    """提取 EQN 特征和 stats 映射结果，合并保存为 CSV"""
-    print("---------------------Parsing Data Project: EQN Features + Stats---------------------")
+def parse_data_project(file_count, start_idx=0, end_idx=None, output_file="simple_circuit_analysis_project.csv", append=False):
+    """提取 EQN 特征和 stats 映射结果，合并保存为 CSV
+    
+    Args:
+        file_count: 总电路数量（用于确定范围）
+        start_idx: 起始索引（包含）
+        end_idx: 结束索引（不包含），如果为 None 则使用 file_count
+        output_file: 输出文件名
+        append: 是否追加模式（True=追加，False=覆盖）
+    """
+    if end_idx is None:
+        end_idx = file_count
+    
+    print(f"---------------------Parsing Data Project: EQN Features + Stats (Circuits {start_idx}-{end_idx-1})---------------------")
     
     # 导入特征提取器
     # from eqn_feature_extractor import EqnFeatureExtractor
@@ -419,9 +450,9 @@ def parse_data_project(file_count):
         
         return result
     
-    # 解析所有电路
+    # 解析指定范围的电路
     data_list = []
-    for i in tqdm(range(file_count), desc='Parsing circuits'):
+    for i in tqdm(range(start_idx, end_idx), desc=f'Parsing circuits {start_idx}-{end_idx-1}'):
         data = parse_single_circuit(i)
         data_list.append(data)
     
@@ -435,13 +466,17 @@ def parse_data_project(file_count):
     df = df[(df['power'] != 0) & (df['delay'] != 0) & (df['lev'] != 0) & (df['area'] != 0)]
     
     # 保存为 CSV
-    output_file = "simple_circuit_analysis_project.csv"
-    df.to_csv(output_file, index=False)
+    if append and os.path.exists(output_file):
+        # 追加模式：不包含表头
+        df.to_csv(output_file, mode='a', header=False, index=False)
+        print(f"\n数据已追加到: {output_file} (本批 {len(df)} 行)")
+    else:
+        # 覆盖模式：包含表头
+        df.to_csv(output_file, index=False)
+        print(f"\n数据已保存到: {output_file} (本批 {len(df)} 行)")
     
-    print(f"\n数据已保存到: {output_file}")
-    print(f"总行数: {len(df)}")
+    print(f"本批有效行数: {len(df)}")
     print(f"总列数: {len(df.columns)}")
-    print(f"\n列名: {', '.join(df.columns.tolist())}")
     
     return df
 
@@ -462,7 +497,7 @@ if __name__ == "__main__":
     # 可以通过命令行参数设置并行度，默认使用 CPU 核心数
     import argparse
     parser = argparse.ArgumentParser(description='Collect circuit data with parallel processing')
-    parser.add_argument('--file_count', type=int, default=1000, help='Number of circuits to process')
+    parser.add_argument('--file_count', type=int, default=60000, help='Number of circuits to process')
     parser.add_argument('--max_workers', type=int, default=None, help='Maximum number of parallel workers (default: CPU count)')
     args = parser.parse_args()
     
@@ -474,12 +509,66 @@ if __name__ == "__main__":
     
     print(f"Processing {file_count} circuits with {max_workers} workers")
     
-    # run_aigfuzz(file_count, max_workers=max_workers)
-    run_generate_eqn(file_count, max_workers=max_workers)
-    # load_circuits(file_count, max_workers=max_workers)
-    load_eqn(file_count, max_workers=max_workers)
-    process_circuits(file_count, max_workers=max_workers)
-    run_abc(file_count, max_workers=max_workers)
-    # parse_data(file_count)
-    parse_data_project(file_count)
+    # 分批处理参数
+    batch_size = 100
+    output_file = "simple_circuit_analysis_project.csv"
+    
+    # 检查输出文件是否已存在
+    file_exists = os.path.exists(output_file)
+    if file_exists:
+        # 读取现有文件，获取已有数据的最大索引
+        try:
+            existing_df = pd.read_csv(output_file)
+            if len(existing_df) > 0:
+                print(f"检测到已存在的输出文件: {output_file}")
+                print(f"现有数据行数: {len(existing_df)}")
+                # 如果文件存在，从文件末尾继续追加
+                # 这里假设需要从 file_count 开始继续处理
+                # 如果需要从现有数据的末尾继续，需要更复杂的逻辑
+        except Exception as e:
+            print(f"警告: 无法读取现有文件 {output_file}: {e}")
+            file_exists = False
+    
+    # 分批处理
+    total_batches = (file_count + batch_size - 1) // batch_size
+    print(f"\n将分 {total_batches} 批处理，每批 {batch_size} 个电路\n")
+    
+    for batch_idx in range(total_batches):
+        start_idx = batch_idx * batch_size
+        end_idx = min((batch_idx + 1) * batch_size, file_count)
+        
+        print(f"\n{'='*80}")
+        print(f"处理第 {batch_idx + 1}/{total_batches} 批: 电路 {start_idx} 到 {end_idx - 1}")
+        print(f"{'='*80}\n")
+        
+        # 处理当前批次（使用绝对索引）
+        batch_size_actual = end_idx - start_idx
+        # run_aigfuzz(batch_size_actual, max_workers=max_workers, start_idx=start_idx)  # 如果需要生成新电路
+        run_generate_eqn(batch_size_actual, max_workers=max_workers, start_idx=start_idx)
+        # load_circuits(batch_size_actual, max_workers=max_workers, start_idx=start_idx)
+        load_eqn(batch_size_actual, max_workers=max_workers, start_idx=start_idx)
+        process_circuits(batch_size_actual, max_workers=max_workers, start_idx=start_idx)
+        run_abc(batch_size_actual, max_workers=max_workers, start_idx=start_idx)
+        
+        # 解析并保存当前批次的数据到CSV
+        # 如果文件已存在或是第一批，使用追加模式；否则覆盖写入
+        parse_data_project(
+            file_count=file_count,  # 总电路数量
+            start_idx=start_idx,
+            end_idx=end_idx,
+            output_file=output_file,
+            append=(file_exists or batch_idx > 0)  # 如果文件已存在或是第二批及以后，追加写入
+        )
+        
+        print(f"\n第 {batch_idx + 1}/{total_batches} 批处理完成！\n")
+    
+    # 最终统计
+    if os.path.exists(output_file):
+        final_df = pd.read_csv(output_file)
+        print(f"\n{'='*80}")
+        print(f"所有批次处理完成！")
+        print(f"最终文件: {output_file}")
+        print(f"总行数: {len(final_df)}")
+        print(f"总列数: {len(final_df.columns)}")
+        print(f"{'='*80}")
 # 

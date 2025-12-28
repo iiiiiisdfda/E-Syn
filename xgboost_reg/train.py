@@ -22,7 +22,7 @@ def r(y_true, y_pred):
 
 def main():
     parser = argparse.ArgumentParser(description='Train XGBoost model')
-    parser.add_argument('--data', type=str, default='../sym_reg/graph50000.csv', help='Path to data file')
+    parser.add_argument('--data', type=str, default='../sym_reg/graph50000new.csv', help='Path to data file')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
     

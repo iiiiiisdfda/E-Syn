@@ -17,31 +17,24 @@ def rrse(y_true, y_pred):
 
 def main():
     parser = argparse.ArgumentParser(description='Compare multiple trained models')
-    parser.add_argument('--data', type=str, default='../sym_reg/1000.csv', help='Path to data file')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
     
-    # 读取数据
-    data_path = args.data
-    if not os.path.exists(data_path):
-        alternative_paths = [
-            '../sym_reg/feature1/1000.csv',
-            '../sym_reg/new_50000.csv',
-            '../sym_reg/mig_circuit_analysis.csv',
-            '../sym_reg/simple_circuit_analysis_large.csv',
-            'data.csv'
-        ]
-        for alt_path in alternative_paths:
-            if os.path.exists(alt_path):
-                data_path = alt_path
-                print(f"Using alternative data path: {data_path}")
-                break
-        else:
-            print(f"Error: Data file not found at {args.data}")
-            print("Tried alternative paths but none exist.")
-            return
+    # Model 1 使用指定的数据文件
+    data_path_1 = '/home/ice890425/E-Syn/sym_reg/1000.csv'
+    if not os.path.exists(data_path_1):
+        print(f"✗ Error: Model 1 data file not found at {data_path_1}")
+        return
     
-    data = pd.read_csv(data_path)
+    # Model 2 使用 graph5000new.csv
+    data_path_2 = '../sym_reg/graph5000new.csv'
+    if not os.path.exists(data_path_2):
+        print(f"✗ Error: Model 2 data file not found at {data_path_2}")
+        return
+    
+    # 读取 Model 1 的数据
+    print(f"Loading Model 1 data from: {data_path_1}")
+    data = pd.read_csv(data_path_1)
     print(f"Data shape: {data.shape}")
     print(f"Data columns: {data.columns.tolist()}")
     
@@ -60,12 +53,13 @@ def main():
     feature_cols_2 = [col for col in data.columns if col not in exclude_cols_2]
     
     print(f"\nFor Model 1 (xgb_data_1):")
+    print(f"  Data file: {data_path_1}")
     print(f"  Excluded columns: {exclude_cols_1}")
     print(f"  Feature count: {len(feature_cols_1)}")
     print(f"\nFor Model 2 (xgb_data_2):")
-    print(f"  Will use graph5000.csv as test set")
-    print(f"  Will exclude: {exclude_cols + ['&']}")
-    print(f"  Note: Model 2 excludes '&' column and uses different test set")
+    print(f"  Data file: {data_path_2}")
+    print(f"  Will exclude: {exclude_cols}")
+    print(f"  Note: Model 2 uses different test set")
     
     # 选择目标变量
     if args.target == 'area':
@@ -81,8 +75,8 @@ def main():
     
     print("\n" + "="*80)
     print("Feature Comparison: Model 1 (xgb_data_1) vs Model 2 (xgb_data_2)")
-    print("Model 1: Using default test set")
-    print("Model 2: Using graph5000.csv as test set")
+    print(f"Model 1: Using {data_path_1}")
+    print(f"Model 2: Using {data_path_2}")
     print("Loading pre-trained models and evaluating on test sets")
     print("="*80)
     
@@ -153,15 +147,9 @@ def main():
         print("  Please train the model first using train.py")
         return
     
-    # Model 2 使用 graph5000.csv 作为测试集
-    graph_data_path = '../sym_reg/graph5000.csv'
-    if not os.path.exists(graph_data_path):
-        print(f"  ✗ Error: Graph data file not found at {graph_data_path}")
-        print("  Please ensure graph5000.csv exists in sym_reg directory")
-        return
-    
-    print(f"  Loading test data from {graph_data_path}...")
-    data_2 = pd.read_csv(graph_data_path)
+    # Model 2 使用 graph5000new.csv 作为测试集
+    print(f"  Loading test data from {data_path_2}...")
+    data_2 = pd.read_csv(data_path_2)
     print(f"  Test data shape: {data_2.shape}")
     print(f"  Test data columns: {data_2.columns.tolist()}")
     
@@ -195,7 +183,7 @@ def main():
         print(f"  ⚠ Warning: Feature validation failed: {e}")
         print(f"  Model expects different feature count or order")
     
-    print("  Evaluating on graph5000.csv test set...")
+    print("  Evaluating on graph5000new.csv test set...")
     y_pred_2 = xgb_model_2.predict(X_2)
     results['Model 2 (xgb_data_2)'] = {
         'MAE': mean_absolute_error(y_2, y_pred_2),
@@ -204,13 +192,13 @@ def main():
         'R²': r2_score(y_2, y_pred_2),
         'RRSE': rrse(y_2, y_pred_2),
     }
-    print("  ✓ Model 2 (xgb_data_2) loaded and evaluated on graph5000.csv")
+    print("  ✓ Model 2 (xgb_data_2) loaded and evaluated on graph5000new.csv")
     
     # 打印对比结果
     print("\n" + "="*80)
     print("Feature Comparison Results")
-    print("Model 1: Evaluated on default test set")
-    print("Model 2: Evaluated on graph5000.csv test set")
+    print(f"Model 1: Evaluated on {data_path_1}")
+    print(f"Model 2: Evaluated on {data_path_2}")
     print("="*80)
     
     # 创建结果 DataFrame
