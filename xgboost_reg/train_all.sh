@@ -182,13 +182,13 @@ if [ "$SKIP_COMPARISON" = false ]; then
     echo "=========================================="
     echo "[6/6] Model Comparison"
     echo "=========================================="
-    if [ -f "model_comparision.py" ]; then
+    if [ -f "model_comparison.py" ]; then
         # 检查评估数据文件是否存在
         if [ ! -f "$EVAL_DATA_PATH" ]; then
             echo "✗ Warning: Evaluation data file not found: $EVAL_DATA_PATH"
             echo "  Skipping model comparison..."
         else
-            python model_comparision.py --data "$EVAL_DATA_PATH" --target "$TARGET"
+            python model_comparison.py --data "$EVAL_DATA_PATH" --target "$TARGET"
             if [ $? -eq 0 ]; then
                 echo "✓ Model comparison completed successfully"
             else
@@ -197,7 +197,7 @@ if [ "$SKIP_COMPARISON" = false ]; then
             fi
         fi
     else
-        echo "✗ Warning: model_comparision.py not found, skipping comparison"
+        echo "✗ Warning: model_comparison.py not found, skipping comparison"
     fi
     echo ""
 fi
@@ -230,7 +230,7 @@ echo "Training Summary"
 echo "=========================================="
 if [ "$SKIP_COMPARISON" = true ]; then
     echo "To run model comparison manually:"
-    echo "  python model_comparision.py --data \"$EVAL_DATA_PATH\" --target \"$TARGET\""
+    echo "  python model_comparison.py --data \"$EVAL_DATA_PATH\" --target \"$TARGET\""
 else
     echo "Model comparison has been completed."
     if [ -f "model_comparison_results_${TARGET}.csv" ]; then

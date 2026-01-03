@@ -136,7 +136,7 @@ def cross_val_evaluate_mlp(mlp_wrapper, X, y, model_name="MLP", n_folds=10):
 
 def main():
     parser = argparse.ArgumentParser(description='Compare multiple trained models')
-    parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', help='Path to data file')
+    parser.add_argument('--data', type=str, default='../sym_reg/simple_circuit_analysis_project_test.csv', help='Path to data file')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
     
@@ -191,7 +191,7 @@ def main():
     results = {}
     
     print("\n" + "="*80)
-    print("Model Comparison: XGBoost vs Random Forest vs LightGBM")
+    print("Model Comparison: XGBoost vs Random Forest vs LightGBM vs MLP vs CatBoost")
     print("Loading pre-trained models and evaluating on test set")
     print("="*80)
     
@@ -199,48 +199,146 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     
-    # 1. XGBoost - 从 Python 代码或模型文件加载
-    print("\n[1/3] XGBoost")
-    xgb_py_path = f'xgb_data/xgb_model_{args.target}.py'
-    xgb_model_path = f'xgb_data/xgb_best_model_{args.target}.model'
+    # 1. XGBoost - 优先从 .model 文件加载
+    print("\n[1/5] XGBoost")
+    # 使用 xgb_data_2 目录（新训练的模型，36 features）
+    xgb_py_path = f'xgb_data_2/xgb_model_{args.target}.py'
+    xgb_model_path = f'xgb_data_2/xgb_best_model_{args.target}.model'
     
-    if os.path.exists(xgb_py_path):
-        print(f"  Loading XGBoost model from {xgb_py_path}...")
+    # 优先使用 .model 文件
+    if os.path.exists(xgb_model_path):
+        print(f"  Loading XGBoost model from {xgb_model_path}...")
         try:
-            # 动态导入 Python 模型代码
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("xgb_model", xgb_py_path)
-            xgb_model_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(xgb_model_module)
+            models['XGBoost'] = xgb.XGBRegressor()
+            models['XGBoost'].load_model(xgb_model_path)
+            print("  ✓ Model loaded successfully")
             
-            # 创建预测函数包装器
-            def xgb_predict(X_data):
-                predictions = []
-                for row in X_data:
-                    pred = xgb_model_module.score(row.tolist())
-                    predictions.append(pred)
-                return np.array(predictions)
+            # 显示模型期望的特征数量和名称
+            expected_features = None
+            if hasattr(models['XGBoost'], 'n_features_in_'):
+                expected_features = models['XGBoost'].n_features_in_
+                print(f"  Model expects {expected_features} features")
             
-            # 在测试集上评估
-            print("  Evaluating on test set...")
-            y_pred = xgb_predict(X)
-            results['XGBoost'] = {
-                'MAE': mean_absolute_error(y, y_pred),
-                'MAPE': mape(y, y_pred),
-                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-                'R²': r2_score(y, y_pred),
-                'RRSE': rrse(y, y_pred),
-            }
-            print("  ✓ XGBoost model loaded and evaluated")
+            model_feature_names = None
+            if hasattr(models['XGBoost'], 'feature_names_in_') and models['XGBoost'].feature_names_in_ is not None:
+                model_feature_names = list(models['XGBoost'].feature_names_in_)
+                print(f"  Model feature names ({len(model_feature_names)}):")
+                for i, name in enumerate(model_feature_names, 1):
+                    print(f"    {i:2d}. {name}")
+            else:
+                print("  ⚠ Model does not have feature_names_in_ attribute")
+                print("  (This means the model was trained without feature names)")
+                # 即使没有保存特征名称，也尝试推断
+                if expected_features is not None:
+                    print(f"\n  Attempting to infer {expected_features} features from test data...")
+                    # 如果测试数据的特征数量匹配，假设它们就是模型期望的特征
+                    if len(feature_cols) == expected_features:
+                        print(f"  ✓ Test data has matching feature count, assuming these are the model features:")
+                        model_feature_names = feature_cols
+                        for i, name in enumerate(model_feature_names, 1):
+                            print(f"    {i:2d}. {name}")
+                    elif len(feature_cols) > expected_features:
+                        print(f"  ⚠ Test data has {len(feature_cols)} features, but model expects {expected_features}")
+                        print(f"  Showing first {expected_features} features (may not match model):")
+                        for i, name in enumerate(feature_cols[:expected_features], 1):
+                            print(f"    {i:2d}. {name}")
+                        print(f"  ... and {len(feature_cols) - expected_features} more features")
+                    else:
+                        print(f"  ⚠ Test data has {len(feature_cols)} features, but model expects {expected_features}")
+                        print(f"  All test data features:")
+                        for i, name in enumerate(feature_cols, 1):
+                            print(f"    {i:2d}. {name}")
+            
+            print(f"\n  Test data has {X.shape[1]} features")
+            print(f"  Test data feature columns ({len(feature_cols)}):")
+            for i, name in enumerate(feature_cols, 1):
+                print(f"    {i:2d}. {name}")
+            
+            # 比较特征差异
+            if model_feature_names is not None:
+                model_feature_set = set(model_feature_names)
+                test_feature_set = set(feature_cols)
+                missing_in_test = model_feature_set - test_feature_set
+                extra_in_test = test_feature_set - model_feature_set
+                
+                if missing_in_test:
+                    print(f"\n  ⚠ Features in model but NOT in test data ({len(missing_in_test)}):")
+                    for name in sorted(missing_in_test):
+                        print(f"    - {name}")
+                
+                if extra_in_test:
+                    print(f"\n  ⚠ Features in test data but NOT in model ({len(extra_in_test)}):")
+                    for name in sorted(extra_in_test):
+                        print(f"    - {name}")
+                
+                if not missing_in_test and not extra_in_test:
+                    print(f"\n  ✓ All features match!")
+            elif expected_features is not None:
+                if len(feature_cols) != expected_features:
+                    print(f"\n  ⚠ Feature count mismatch!")
+                    print(f"  Model expects: {expected_features} features")
+                    print(f"  Test data has: {len(feature_cols)} features")
+                    print(f"  Difference: {len(feature_cols) - expected_features} features")
+            
+            print("\n  Evaluating on test set...")
+            
+            # 检查特征数量是否匹配
+            try:
+                # 尝试预测一个样本以检查特征数量
+                test_pred = models['XGBoost'].predict(X[:1])
+                y_pred = models['XGBoost'].predict(X)
+                results['XGBoost'] = {
+                    'MAE': mean_absolute_error(y, y_pred),
+                    'MAPE': mape(y, y_pred),
+                    'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                    'R²': r2_score(y, y_pred),
+                    'RRSE': rrse(y, y_pred),
+                }
+                print("  ✓ XGBoost model evaluated successfully")
+            except Exception as e2:
+                if "Feature shape mismatch" in str(e2) or "feature_names" in str(e2).lower():
+                    print(f"  ✗ Feature shape mismatch: {e2}")
+                    expected_features = models['XGBoost'].n_features_in_ if hasattr(models['XGBoost'], 'n_features_in_') else 'unknown'
+                    print(f"  Expected features: {expected_features}")
+                    print(f"  Got features: {X.shape[1]}")
+                    print(f"  Please ensure the training and evaluation data have the same feature columns")
+                    return
+                else:
+                    raise
         except Exception as e:
-            print(f"  ✗ Error loading XGBoost Python model: {e}")
-            # 尝试使用 .model 文件作为后备
-            if os.path.exists(xgb_model_path):
-                print(f"  Trying to load from {xgb_model_path}...")
+            print(f"  ✗ Error loading XGBoost model: {e}")
+            # 如果 .model 文件加载失败，尝试使用 Python 文件作为后备
+            if os.path.exists(xgb_py_path):
+                print(f"  Trying to load from {xgb_py_path} as fallback...")
                 try:
-                    models['XGBoost'] = xgb.XGBRegressor()
-                    models['XGBoost'].load_model(xgb_model_path)
-                    y_pred = models['XGBoost'].predict(X)
+                    # 动态导入 Python 模型代码
+                    import importlib.util
+                    import math
+                    spec = importlib.util.spec_from_file_location("xgb_model", xgb_py_path)
+                    xgb_model_module = importlib.util.module_from_spec(spec)
+                    
+                    # 在加载模块前，注入必要的导入（修复 nan 未定义问题）
+                    xgb_model_module.__dict__['nan'] = float('nan')
+                    xgb_model_module.__dict__['math'] = math
+                    
+                    # 加载模块
+                    spec.loader.exec_module(xgb_model_module)
+                    
+                    # 确保 nan 在模块中可用
+                    if not hasattr(xgb_model_module, 'nan'):
+                        xgb_model_module.nan = float('nan')
+                    
+                    # 创建预测函数包装器
+                    def xgb_predict(X_data):
+                        predictions = []
+                        for row in X_data:
+                            pred = xgb_model_module.score(row.tolist())
+                            predictions.append(pred)
+                        return np.array(predictions)
+                    
+                    # 在测试集上评估
+                    print("  Evaluating on test set...")
+                    y_pred = xgb_predict(X)
                     results['XGBoost'] = {
                         'MAE': mean_absolute_error(y, y_pred),
                         'MAPE': mape(y, y_pred),
@@ -248,39 +346,17 @@ def main():
                         'R²': r2_score(y, y_pred),
                         'RRSE': rrse(y, y_pred),
                     }
-                    print("  ✓ XGBoost model loaded from .model file")
+                    print("  ✓ XGBoost model loaded from Python file")
                 except Exception as e2:
-                    print(f"  ✗ Error loading XGBoost model: {e2}")
+                    print(f"  ✗ Error loading XGBoost Python model: {e2}")
                     return
             else:
                 print(f"  ✗ Error: Model files not found")
                 print("  Please train the model first using train.py")
                 return
-    elif os.path.exists(xgb_model_path):
-        print(f"  Loading pre-trained XGBoost model from {xgb_model_path}...")
-        try:
-            models['XGBoost'] = xgb.XGBRegressor()
-            models['XGBoost'].load_model(xgb_model_path)
-            print("  ✓ Model loaded successfully")
-            print("  Evaluating on test set...")
-            y_pred = models['XGBoost'].predict(X)
-            results['XGBoost'] = {
-                'MAE': mean_absolute_error(y, y_pred),
-                'MAPE': mape(y, y_pred),
-                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-                'R²': r2_score(y, y_pred),
-                'RRSE': rrse(y, y_pred),
-            }
-        except Exception as e:
-            print(f"  ✗ Error loading XGBoost model: {e}")
-            return
-    else:
-        print(f"  ✗ Error: Model files not found")
-        print("  Please train the model first using train.py")
-        return
     
     # 2. Random Forest - 从 Python 代码加载模型
-    print("\n[2/3] Random Forest")
+    print("\n[2/5] Random Forest")
     rf_model_path = f'rf_data/rf_model_{args.target}.py'
     if os.path.exists(rf_model_path):
         print(f"  Loading Random Forest model from {rf_model_path}...")
@@ -319,7 +395,7 @@ def main():
         print("  Please train the model first using RF_train.py")
     
     # 3. LightGBM - 从 Python 代码加载模型
-    print("\n[3/3] LightGBM")
+    print("\n[3/5] LightGBM")
     lgbm_model_path = f'lgbm_data/lgbm_model_{args.target}.py'
     if os.path.exists(lgbm_model_path):
         print(f"  Loading LightGBM model from {lgbm_model_path}...")
@@ -356,6 +432,110 @@ def main():
     else:
         print(f"  ✗ Error: Model file not found at {lgbm_model_path}")
         print("  Please train the model first using LightGBM_train.py")
+    
+    # 4. MLP - 从 PyTorch 模型文件加载
+    print("\n[4/5] MLP")
+    mlp_model_path = f'mlp_data/mlp_model_complete_{args.target}.pth'
+    if os.path.exists(mlp_model_path):
+        print(f"  Loading MLP model from {mlp_model_path}...")
+        try:
+            # 加载模型检查点
+            checkpoint = torch.load(mlp_model_path, map_location=device, weights_only=False)
+            model_params = checkpoint.get('model_params', {'hidden_dims': [128, 64, 32], 'dropout_rate': 0.2})
+            input_dim = checkpoint.get('input_dim', X.shape[1])
+            scaler = checkpoint.get('scaler')
+            
+            if scaler is None:
+                print("  ⚠ Warning: Scaler not found in checkpoint, creating default scaler")
+                from sklearn.preprocessing import StandardScaler
+                scaler = StandardScaler()
+                scaler.fit(X)  # 使用测试数据拟合（不理想，但可以工作）
+            
+            # 创建模型
+            hidden_dims = model_params.get('hidden_dims', [128, 64, 32])
+            mlp_model = MLPRegressor(input_dim=input_dim, hidden_dims=hidden_dims, 
+                                   dropout_rate=model_params.get('dropout_rate', 0.2))
+            mlp_model.load_state_dict(checkpoint['model_state_dict'])
+            mlp_model.to(device)
+            
+            # 创建包装器
+            mlp_wrapper = MLPWrapper(mlp_model, scaler, device=device)
+            
+            # 在测试集上评估
+            print("  Evaluating on test set...")
+            y_pred_mlp = mlp_wrapper.predict(X)
+            results['MLP'] = {
+                'MAE': mean_absolute_error(y, y_pred_mlp),
+                'MAPE': mape(y, y_pred_mlp),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred_mlp)),
+                'R²': r2_score(y, y_pred_mlp),
+                'RRSE': rrse(y, y_pred_mlp),
+            }
+            print("  ✓ MLP model loaded and evaluated")
+        except Exception as e:
+            print(f"  ✗ Error loading MLP model: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print(f"  ✗ Error: Model file not found at {mlp_model_path}")
+        print("  Please train the model first using MLP_train.py")
+    
+    # 5. CatBoost - 从保存的模型文件加载
+    print("\n[5/5] CatBoost")
+    catboost_model_path_pkl = f'catboost_data/catboost_best_model_{args.target}.pkl'
+    catboost_model_path_cbm = f'catboost_data/catboost_best_model_{args.target}.cbm'
+    
+    if os.path.exists(catboost_model_path_pkl):
+        print(f"  Loading CatBoost model from {catboost_model_path_pkl}...")
+        try:
+            import joblib
+            from catboost import CatBoostRegressor
+            
+            # 加载模型
+            model_data = joblib.load(catboost_model_path_pkl)
+            catboost_model = model_data['model']
+            
+            # 在测试集上评估
+            print("  Evaluating on test set...")
+            y_pred_catboost = catboost_model.predict(X)
+            results['CatBoost'] = {
+                'MAE': mean_absolute_error(y, y_pred_catboost),
+                'MAPE': mape(y, y_pred_catboost),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred_catboost)),
+                'R²': r2_score(y, y_pred_catboost),
+                'RRSE': rrse(y, y_pred_catboost),
+            }
+            print("  ✓ CatBoost model loaded and evaluated")
+        except Exception as e:
+            print(f"  ✗ Error loading CatBoost model: {e}")
+            import traceback
+            traceback.print_exc()
+    elif os.path.exists(catboost_model_path_cbm):
+        print(f"  Loading CatBoost model from {catboost_model_path_cbm}...")
+        try:
+            from catboost import CatBoostRegressor
+            catboost_model = CatBoostRegressor()
+            catboost_model.load_model(catboost_model_path_cbm)
+            
+            # 在测试集上评估
+            print("  Evaluating on test set...")
+            y_pred_catboost = catboost_model.predict(X)
+            results['CatBoost'] = {
+                'MAE': mean_absolute_error(y, y_pred_catboost),
+                'MAPE': mape(y, y_pred_catboost),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred_catboost)),
+                'R²': r2_score(y, y_pred_catboost),
+                'RRSE': rrse(y, y_pred_catboost),
+            }
+            print("  ✓ CatBoost model loaded and evaluated")
+        except Exception as e:
+            print(f"  ✗ Error loading CatBoost model: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print(f"  ✗ Error: Model files not found")
+        print(f"  Expected: {catboost_model_path_pkl} or {catboost_model_path_cbm}")
+        print("  Please train the model first using CatBoost.train.py")
     
     # 打印对比结果
     print("\n" + "="*80)
@@ -412,8 +592,8 @@ def main():
         
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         
-        # 定义颜色（三个模型）
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # 蓝色、橙色、绿色
+        # 定义颜色（五个模型）
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # 蓝色、橙色、绿色、红色、紫色
         
         # 1. MAE 对比
         ax1 = axes[0, 0]

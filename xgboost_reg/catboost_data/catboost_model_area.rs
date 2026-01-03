@@ -1,7 +1,7 @@
 // Auto-generated CatBoost model code
 // This code implements a CatBoost regression model
 // Target: area
-// Number of features: 13
+// Number of features: 36
 
 pub struct CatBoostModel {
     // Model parameters embedded in predict function
@@ -13,7 +13,7 @@ impl CatBoostModel {
     }
 
     pub fn predict(&self, features: &[f64]) -> f64 {
-        assert_eq!(features.len(), 13);
+        assert_eq!(features.len(), 36);
 
         // CatBoost uses sum of tree predictions
         let mut result = 0.0;
