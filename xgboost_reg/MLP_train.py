@@ -275,19 +275,59 @@ def main(args=None):
     print(f"Feature shape: {X.shape}")
     print(f"Target shape: {y.shape}")
     
+    # 限制数据量：最多使用 50000 条（40000 训练 + 10000 验证）
+    max_total_samples = 50000
+    max_train_samples = 40000
+    max_val_samples = 10000
+    
+    if len(X) > max_total_samples:
+        print(f"\n⚠️  Data has {len(X)} samples, limiting to {max_total_samples} samples")
+        # 打乱数据
+        indices = np.random.RandomState(seed=42).permutation(len(X))
+        selected_indices = indices[:max_total_samples]
+        X = X[selected_indices]
+        y = y[selected_indices]
+        print(f"   Using {len(X)} samples for training and validation")
+    
     # 数据标准化
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    # 分割数据集
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_scaled, y, test_size=0.2, random_state=42
-    )
-    
-    # 进一步分割训练集和验证集
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train, y_train, test_size=0.2, random_state=42
-    )
+    # 分割数据集：确保训练集最多 40000，验证集 10000
+    if len(X_scaled) >= max_total_samples:
+        # 如果数据足够，使用固定数量
+        train_size = max_train_samples
+        X_train = X_scaled[:train_size]
+        X_val = X_scaled[train_size:train_size+max_val_samples]
+        y_train = y[:train_size]
+        y_val = y[train_size:train_size+max_val_samples]
+        # 测试集使用剩余数据（如果有）
+        if len(X_scaled) > train_size + max_val_samples:
+            X_test = X_scaled[train_size+max_val_samples:]
+            y_test = y[train_size+max_val_samples:]
+        else:
+            # 如果没有剩余数据，从验证集中分出一部分作为测试集
+            test_size = min(2000, len(X_val) // 5)
+            X_test = X_val[:test_size]
+            y_test = y_val[:test_size]
+            X_val = X_val[test_size:]
+            y_val = y_val[test_size:]
+    else:
+        # 如果数据不足，按比例分割
+        # 先分出测试集
+        test_ratio = 0.2
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            X_scaled, y, test_size=test_ratio, random_state=42
+        )
+        # 再从剩余数据中分出训练集和验证集
+        val_ratio = max_val_samples / len(X_temp) if len(X_temp) > max_val_samples else 0.2
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp, test_size=val_ratio, random_state=42
+        )
+        # 限制训练集大小
+        if len(X_train) > max_train_samples:
+            X_train = X_train[:max_train_samples]
+            y_train = y_train[:max_train_samples]
     
     print(f"Train size: {X_train.shape[0]}")
     print(f"Val size: {X_val.shape[0]}")

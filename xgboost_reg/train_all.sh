@@ -87,8 +87,8 @@ START_TIME=$(date +%s)
 echo "=========================================="
 echo "[1/5] Training XGBoost Model"
 echo "=========================================="
-if [ -f "train.py" ]; then
-    python train.py --data "$DATA_PATH" --target "$TARGET"
+if [ -f "train_2.py" ]; then
+    python train_2.py --data "$DATA_PATH" --target "$TARGET"
     if [ $? -eq 0 ]; then
         echo "✓ XGBoost training completed successfully"
     else
@@ -96,7 +96,7 @@ if [ -f "train.py" ]; then
         exit 1
     fi
 else
-    echo "✗ Error: train.py not found"
+    echo "✗ Error: train_2.py not found"
     exit 1
 fi
 echo ""

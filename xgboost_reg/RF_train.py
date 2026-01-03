@@ -74,10 +74,42 @@ def main():
     print(f"Target: {args.target}")
     print(f"Target statistics: mean={np.mean(y):.2f}, std={np.std(y):.2f}, min={np.min(y):.2f}, max={np.max(y):.2f}")
     
+    # 限制数据量：最多使用 50000 条（40000 训练 + 10000 验证）
+    max_total_samples = 50000
+    max_train_samples = 40000
+    max_val_samples = 10000
+    
+    if len(X) > max_total_samples:
+        print(f"\n⚠️  Data has {len(X)} samples, limiting to {max_total_samples} samples")
+        # 打乱数据
+        indices = np.random.RandomState(seed=42).permutation(len(X))
+        selected_indices = indices[:max_total_samples]
+        X = X[selected_indices]
+        y = y[selected_indices]
+        print(f"   Using {len(X)} samples for training and validation")
+    
     # 分割数据集
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
+    # 确保训练集最多 40000，验证集 10000
+    if len(X) >= max_total_samples:
+        # 如果数据足够，使用固定数量
+        train_size = max_train_samples
+        X_train = X[:train_size]
+        X_test = X[train_size:train_size+max_val_samples]
+        y_train = y[:train_size]
+        y_test = y[train_size:train_size+max_val_samples]
+    else:
+        # 如果数据不足，按比例分割
+        val_ratio = max_val_samples / len(X) if len(X) > max_val_samples else 0.2
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=val_ratio, random_state=42
+        )
+        # 限制训练集大小
+        if len(X_train) > max_train_samples:
+            X_train = X_train[:max_train_samples]
+            y_train = y_train[:max_train_samples]
+    
     print(f"\nTrain set: {X_train.shape[0]} samples")
-    print(f"Test set: {X_test.shape[0]} samples")
+    print(f"Validation set: {X_test.shape[0]} samples")
     
     # 定义超参数网格（简化，与 XGBoost 风格一致）
     param_grid = {

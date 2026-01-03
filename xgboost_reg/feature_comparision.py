@@ -16,50 +16,36 @@ def rrse(y_true, y_pred):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Compare multiple trained models')
+    parser = argparse.ArgumentParser(description='Compare xgb_data_0 (original features) vs xgb_data_1 (no count_xor) vs xgb_data_2 (all features)')
+    parser.add_argument('--data', type=str, default='../sym_reg/simple_circuit_analysis_project_test.csv', help='Path to test data file')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
     
-    # Model 1 使用指定的数据文件
-    data_path_1 = '/home/ice890425/E-Syn/sym_reg/1000.csv'
-    if not os.path.exists(data_path_1):
-        print(f"✗ Error: Model 1 data file not found at {data_path_1}")
-        return
+    # 读取测试数据
+    data_path = args.data
+    if not os.path.exists(data_path):
+        # 尝试备用路径
+        alternative_paths = [
+            '../sym_reg/simple_circuit_analysis_project_test.csv',
+            '../sym_reg/simple_circuit_analysis_project_train_val.csv',
+            '../sym_reg/new_50000.csv',
+            '../sym_reg/mig_circuit_analysis.csv',
+            'data.csv'
+        ]
+        for alt_path in alternative_paths:
+            if os.path.exists(alt_path):
+                data_path = alt_path
+                print(f"Using alternative data path: {data_path}")
+                break
+        else:
+            print(f"✗ Error: Test data file not found at {args.data}")
+            print("Tried alternative paths but none exist.")
+            return
     
-    # Model 2 使用 graph5000new.csv
-    data_path_2 = '../sym_reg/graph5000new.csv'
-    if not os.path.exists(data_path_2):
-        print(f"✗ Error: Model 2 data file not found at {data_path_2}")
-        return
-    
-    # 读取 Model 1 的数据
-    print(f"Loading Model 1 data from: {data_path_1}")
-    data = pd.read_csv(data_path_1)
+    print(f"Loading test data from: {data_path}")
+    data = pd.read_csv(data_path)
     print(f"Data shape: {data.shape}")
     print(f"Data columns: {data.columns.tolist()}")
-    
-    # 从数据中提取特征（排除目标变量和相关列）
-    print("\nExtracting features from data...")
-    # 基本排除：lev, power, area, delay, gates, cap, and_gates
-    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
-    
-    # Model 1 (xgb_data_1) 使用所有特征（只排除基本特征）
-    exclude_cols_1 = [col for col in exclude_cols if col in data.columns]
-    feature_cols_1 = [col for col in data.columns if col not in exclude_cols_1]
-    
-    # Model 2 (xgb_data_2) 额外排除 '&' 列
-    exclude_cols_2 = exclude_cols + ['&']
-    exclude_cols_2 = [col for col in exclude_cols_2 if col in data.columns]
-    feature_cols_2 = [col for col in data.columns if col not in exclude_cols_2]
-    
-    print(f"\nFor Model 1 (xgb_data_1):")
-    print(f"  Data file: {data_path_1}")
-    print(f"  Excluded columns: {exclude_cols_1}")
-    print(f"  Feature count: {len(feature_cols_1)}")
-    print(f"\nFor Model 2 (xgb_data_2):")
-    print(f"  Data file: {data_path_2}")
-    print(f"  Will exclude: {exclude_cols}")
-    print(f"  Note: Model 2 uses different test set")
     
     # 选择目标变量
     if args.target == 'area':
@@ -70,14 +56,53 @@ def main():
     print(f"\nTarget shape: {y.shape}")
     print(f"Using {len(y)} samples for evaluation")
     
+    # 准备特征
+    # Model 1 (xgb_data_0): 只使用原始 E-Syn 特征（9个）
+    original_features = ['ASTSize', 'ASTDepth', '+', '!', '*', '&', 'SUM_LIB', 'SUM_NODE', 'AVE_LIB']
+    available_original_features = [col for col in original_features if col in data.columns]
+    missing_original = [col for col in original_features if col not in data.columns]
+    
+    if missing_original:
+        print(f"⚠️  Warning: Some original features are missing: {missing_original}")
+    
+    if len(available_original_features) == 0:
+        print("✗ Error: No original E-Syn features found in the data!")
+        return
+    
+    feature_cols_1 = available_original_features
+    
+    # Model 2 (xgb_data_1): 使用所有特征（排除基本列和 count_xor）
+    exclude_cols_2 = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates', 'count_xor']
+    exclude_cols_2 = [col for col in exclude_cols_2 if col in data.columns]
+    feature_cols_2 = [col for col in data.columns if col not in exclude_cols_2]
+    
+    # Model 3 (xgb_data_2): 使用所有特征（只排除基本列）
+    exclude_cols_3 = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
+    exclude_cols_3 = [col for col in exclude_cols_3 if col in data.columns]
+    feature_cols_3 = [col for col in data.columns if col not in exclude_cols_3]
+    
+    print(f"\nFor Model 1 (xgb_data_0 - original features):")
+    print(f"  Feature count: {len(feature_cols_1)}")
+    print(f"  Features: {feature_cols_1}")
+    print(f"\nFor Model 2 (xgb_data_1 - all features except count_xor):")
+    print(f"  Excluded columns: {exclude_cols_2}")
+    print(f"  Feature count: {len(feature_cols_2)}")
+    print(f"  First 10 features: {feature_cols_2[:10]}")
+    print(f"\nFor Model 3 (xgb_data_2 - all features):")
+    print(f"  Excluded columns: {exclude_cols_3}")
+    print(f"  Feature count: {len(feature_cols_3)}")
+    print(f"  First 10 features: {feature_cols_3[:10]}")
+    
     # 定义要对比的模型结果
     results = {}
     
     print("\n" + "="*80)
-    print("Feature Comparison: Model 1 (xgb_data_1) vs Model 2 (xgb_data_2)")
-    print(f"Model 1: Using {data_path_1}")
-    print(f"Model 2: Using {data_path_2}")
-    print("Loading pre-trained models and evaluating on test sets")
+    print("Model Comparison: xgb_data_0 vs xgb_data_1 vs xgb_data_2")
+    print(f"Test data: {data_path}")
+    print(f"Model 1 (xgb_data_0): {len(feature_cols_1)} original features")
+    print(f"Model 2 (xgb_data_1): {len(feature_cols_2)} features (all features except count_xor)")
+    print(f"Model 3 (xgb_data_2): {len(feature_cols_3)} features (all features)")
+    print("Loading pre-trained models and evaluating on test set")
     print("="*80)
     
     # 创建输出文件夹
@@ -109,16 +134,17 @@ def main():
             print(f"  Expected: {model_path} or {rs_path}")
             return None
     
-    # 1. XGBoost Model 1 from xgb_data_1
-    print("\n[1/2] XGBoost Model 1 (xgb_data_1)")
-    xgb_model_1 = load_xgb_model_from_rs_folder('xgb_data_1', args.target)
+    # 1. XGBoost Model 1 from xgb_data_0 (original features)
+    print("\n[1/3] XGBoost Model 1 (xgb_data_0 - original features)")
+    xgb_model_1 = load_xgb_model_from_rs_folder('xgb_data_0', args.target)
     if xgb_model_1 is None:
-        print("  Please train the model first using train.py")
+        print("  Please train the model first using train_0.py")
         return
     
-    # 使用第一个特征集（Model 1 不排除 '&'）
+    # 使用原始特征集（9个特征）
     X_1 = data[feature_cols_1].values
-    print(f"  Using {len(feature_cols_1)} features for prediction")
+    print(f"  Using {len(feature_cols_1)} original features for prediction")
+    print(f"  Features: {feature_cols_1}")
     
     # 验证特征数量
     try:
@@ -126,79 +152,101 @@ def main():
         test_pred = xgb_model_1.predict(X_1[:1])  # 测试单个样本
         print("  ✓ Feature count matches model expectations")
     except Exception as e:
-        print(f"  ⚠ Warning: Feature validation failed: {e}")
-        print(f"  Model expects different feature count or order")
+        print(f"  ✗ Error: Feature validation failed: {e}")
+        print(f"  Model expects {xgb_model_1.n_features_in_ if hasattr(xgb_model_1, 'n_features_in_') else 'unknown'} features")
+        print(f"  Got {len(feature_cols_1)} features")
+        return
     
     print("  Evaluating on test set...")
     y_pred_1 = xgb_model_1.predict(X_1)
-    results['Model 1 (xgb_data_1)'] = {
+    results['xgb_data_0 (original)'] = {
         'MAE': mean_absolute_error(y, y_pred_1),
         'MAPE': mape(y, y_pred_1),
         'RMSE': np.sqrt(mean_squared_error(y, y_pred_1)),
         'R²': r2_score(y, y_pred_1),
         'RRSE': rrse(y, y_pred_1),
     }
-    print("  ✓ Model 1 (xgb_data_1) loaded and evaluated")
+    print("  ✓ Model 1 (xgb_data_0) loaded and evaluated")
     
-    # 2. XGBoost Model 2 from xgb_data_2
-    print("\n[2/2] XGBoost Model 2 (xgb_data_2)")
-    xgb_model_2 = load_xgb_model_from_rs_folder('xgb_data_2', args.target)
+    # 2. XGBoost Model 2 from xgb_data_1 (all features except count_xor)
+    print("\n[2/3] XGBoost Model 2 (xgb_data_1 - all features except count_xor)")
+    xgb_model_2 = load_xgb_model_from_rs_folder('xgb_data_1', args.target)
     if xgb_model_2 is None:
-        print("  Please train the model first using train.py")
+        print("  Please train the model first using train_1.py")
         return
     
-    # Model 2 使用 graph5000new.csv 作为测试集
-    print(f"  Loading test data from {data_path_2}...")
-    data_2 = pd.read_csv(data_path_2)
-    print(f"  Test data shape: {data_2.shape}")
-    print(f"  Test data columns: {data_2.columns.tolist()}")
-    
-    # 为 Model 2 准备特征（排除 '&'）
-    exclude_cols_2 = exclude_cols 
-    exclude_cols_2 = [col for col in exclude_cols_2 if col in data_2.columns]
-    feature_cols_2 = [col for col in data_2.columns if col not in exclude_cols_2]
-    
-    print(f"  Excluded columns for Model 2: {exclude_cols_2}")
-    print(f"  Feature count for Model 2: {len(feature_cols_2)}")
-    if '&' in exclude_cols_2:
-        print(f"  Note: '&' column excluded for Model 2")
-    
-    # 使用第二个特征集（Model 2 排除 '&'）
-    X_2 = data_2[feature_cols_2].values
-    
-    # 选择目标变量
-    if args.target == 'area':
-        y_2 = data_2['area'].values
-    else:
-        y_2 = data_2['delay'].values
-    
+    # 使用所有特征集（排除 count_xor）
+    X_2 = data[feature_cols_2].values
     print(f"  Using {len(feature_cols_2)} features for prediction")
-    print(f"  Test set size: {len(y_2)} samples")
     
     # 验证特征数量
     try:
         test_pred = xgb_model_2.predict(X_2[:1])  # 测试单个样本
         print("  ✓ Feature count matches model expectations")
     except Exception as e:
-        print(f"  ⚠ Warning: Feature validation failed: {e}")
-        print(f"  Model expects different feature count or order")
+        print(f"  ✗ Error: Feature validation failed: {e}")
+        if hasattr(xgb_model_2, 'n_features_in_'):
+            print(f"  Model expects {xgb_model_2.n_features_in_} features")
+            if hasattr(xgb_model_2, 'feature_names_in_') and xgb_model_2.feature_names_in_ is not None:
+                print(f"  Model feature names: {list(xgb_model_2.feature_names_in_)}")
+        print(f"  Got {len(feature_cols_2)} features")
+        print(f"  Test data features: {feature_cols_2[:10]}...")
+        return
     
-    print("  Evaluating on graph5000new.csv test set...")
+    print("  Evaluating on test set...")
     y_pred_2 = xgb_model_2.predict(X_2)
-    results['Model 2 (xgb_data_2)'] = {
-        'MAE': mean_absolute_error(y_2, y_pred_2),
-        'MAPE': mape(y_2, y_pred_2),
-        'RMSE': np.sqrt(mean_squared_error(y_2, y_pred_2)),
-        'R²': r2_score(y_2, y_pred_2),
-        'RRSE': rrse(y_2, y_pred_2),
+    results['xgb_data_1 (no count_xor)'] = {
+        'MAE': mean_absolute_error(y, y_pred_2),
+        'MAPE': mape(y, y_pred_2),
+        'RMSE': np.sqrt(mean_squared_error(y, y_pred_2)),
+        'R²': r2_score(y, y_pred_2),
+        'RRSE': rrse(y, y_pred_2),
     }
-    print("  ✓ Model 2 (xgb_data_2) loaded and evaluated on graph5000new.csv")
+    print("  ✓ Model 2 (xgb_data_1) loaded and evaluated")
+    
+    # 3. XGBoost Model 3 from xgb_data_2 (all features)
+    print("\n[3/3] XGBoost Model 3 (xgb_data_2 - all features)")
+    xgb_model_3 = load_xgb_model_from_rs_folder('xgb_data_2', args.target)
+    if xgb_model_3 is None:
+        print("  Please train the model first using train_2.py")
+        return
+    
+    # 使用所有特征集
+    X_3 = data[feature_cols_3].values
+    print(f"  Using {len(feature_cols_3)} features for prediction")
+    
+    # 验证特征数量
+    try:
+        test_pred = xgb_model_3.predict(X_3[:1])  # 测试单个样本
+        print("  ✓ Feature count matches model expectations")
+    except Exception as e:
+        print(f"  ✗ Error: Feature validation failed: {e}")
+        if hasattr(xgb_model_3, 'n_features_in_'):
+            print(f"  Model expects {xgb_model_3.n_features_in_} features")
+            if hasattr(xgb_model_3, 'feature_names_in_') and xgb_model_3.feature_names_in_ is not None:
+                print(f"  Model feature names: {list(xgb_model_3.feature_names_in_)}")
+        print(f"  Got {len(feature_cols_3)} features")
+        print(f"  Test data features: {feature_cols_3[:10]}...")
+        return
+    
+    print("  Evaluating on test set...")
+    y_pred_3 = xgb_model_3.predict(X_3)
+    results['xgb_data_2 (all features)'] = {
+        'MAE': mean_absolute_error(y, y_pred_3),
+        'MAPE': mape(y, y_pred_3),
+        'RMSE': np.sqrt(mean_squared_error(y, y_pred_3)),
+        'R²': r2_score(y, y_pred_3),
+        'RRSE': rrse(y, y_pred_3),
+    }
+    print("  ✓ Model 3 (xgb_data_2) loaded and evaluated")
     
     # 打印对比结果
     print("\n" + "="*80)
-    print("Feature Comparison Results")
-    print(f"Model 1: Evaluated on {data_path_1}")
-    print(f"Model 2: Evaluated on {data_path_2}")
+    print("Model Comparison Results")
+    print(f"Test data: {data_path}")
+    print(f"Model 1 (xgb_data_0): {len(feature_cols_1)} original features")
+    print(f"Model 2 (xgb_data_1): {len(feature_cols_2)} features (all features except count_xor)")
+    print(f"Model 3 (xgb_data_2): {len(feature_cols_3)} features (all features)")
     print("="*80)
     
     # 创建结果 DataFrame
@@ -252,7 +300,7 @@ def main():
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         
         # 定义颜色（三个模型）
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # 蓝色、橙色、绿色
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # 蓝色、橙色、绿色、红色
         
         # 1. MAE 对比
         ax1 = axes[0, 0]

@@ -9,6 +9,8 @@
 \usepackage{abstract}
 \usepackage{url}
 \usepackage{balance}
+\usepackage{multirow}
+\usepackage{array}
 
 % IEEE 风格设置
 \geometry{
@@ -105,102 +107,146 @@ coauthor@example.com}
 \subsection{Background}
 % Background information about the research area
 
+Logic synthesis is a fundamental step in digital design automation, significantly impacting the Quality of Results (QoR) such as area, timing, and power consumption. Traditional logic synthesis frameworks, such as ABC~\cite{b3}, employ greedy local optimization approaches that apply incremental changes to small portions of the circuit. These methods, while effective, often limit the exploration space and may miss opportunities for significant improvements.
+
+Recently, E-Syn~\cite{esyn} has emerged as a novel logic optimization framework that leverages equivalence graphs (e-graphs) for Boolean logic rewriting. E-Syn addresses the limitations of traditional AIG-based synthesis by maintaining equivalent classes of logic specifications, allowing exploration of a wider range of equivalent logic forms. A key innovation of E-Syn is its use of technology-aware cost functions obtained from machine learning models, specifically XGBoost regression, to bridge the gap between technology-independent logic cost and post-mapping QoR.
+
 \subsection{Motivation}
 % Why is this research important? What problem does it address?
+
+In E-Syn, the extraction phase plays a critical role in selecting the optimal logic form from the e-graph based on cost estimates. The quality of these cost estimates directly impacts the final QoR of the synthesized circuit. The current E-Syn framework uses XGBoost regression models to predict post-mapping area and delay from technology-independent features. However, the accuracy of these regression models has a direct influence on the extraction quality. Estimation errors in the cost function can lead to suboptimal candidate selection during extraction, potentially missing better logic forms that would result in superior QoR.
+
+\IEEEPARstart{T}{o} address this limitation, we propose to optimize the regression training process in E-Syn to reduce estimation errors. By improving the accuracy of the cost prediction models, we can enhance the quality of extraction decisions, leading to better final synthesis results. Specifically, we focus on:
+
+\begin{itemize}
+\item Improving the training data quality and feature engineering for the regression models
+\item Optimizing hyperparameters and model architectures to reduce prediction errors
+\item Enhancing the cost function accuracy to better reflect actual post-mapping QoR
+\item Validating that improved regression accuracy translates to better extraction quality and final synthesis results
+\end{itemize}
 
 \subsection{Contributions}
 % What are the main contributions of this work?
 
+The main contributions of this work include:
+
+\begin{itemize}
+\item An analysis of the impact of regression model accuracy on E-Syn's extraction quality and final synthesis results
+\item Investigation of how different features affect prediction errors in cost estimation models, identifying critical features that significantly influence estimation accuracy
+\item Comprehensive evaluation demonstrating that reduced estimation errors lead to better extraction decisions and improved QoR
+\item Comparison with multiple regression models (XGBoost, Random Forest, LightGBM, MLP, CatBoost) to identify the most suitable approach for cost estimation
+\end{itemize}
+
 \subsection{Paper Organization}
 % Overview of how the paper is organized
+
+The rest of this paper is organized as follows: Section 2 formulates the problem of regression model optimization for E-Syn's cost estimation. Section 3 presents our proposed methodology for improving regression training. Section 4 describes the experimental setup, including datasets, evaluation metrics, and baseline methods. Section 5 presents the experimental results and analysis. Section 6 discusses the findings and implications. Finally, Section 7 concludes the paper.
 
 \section{Problem Formulation}
 This section provides a detailed formulation of the problem being addressed.
 
-\subsection{Problem Statement}
-% Clear and precise statement of the problem
+As discussed in the introduction, the accuracy of regression models used for cost estimation in E-Syn directly impacts the quality of extraction decisions and the final synthesis results. To improve the overall performance of E-Syn, we focus on optimizing the regression training process from two perspectives:
 
-\subsection{Problem Constraints}
-% Constraints and assumptions
+\begin{enumerate}
+\item \textbf{Modifying training models and methodologies}: We investigate different regression models and training approaches to reduce prediction errors. This includes exploring various machine learning algorithms (XGBoost, Random Forest, LightGBM, MLP, CatBoost) and optimizing their hyperparameters, training procedures, and model architectures to achieve better prediction accuracy for post-mapping area and delay estimation.
 
-\subsection{Mathematical Formulation}
-% Mathematical models and formulations
-% Example:
-% \begin{equation}
-% \label{eq:example}
-% f(x) = \sum_{i=1}^{n} w_i x_i
-% \end{equation}
+\item \textbf{Identifying useful features for prediction}: We analyze the impact of different features on prediction errors and identify which features are most critical for accurate cost estimation. This involves feature importance analysis, feature selection techniques, and understanding how different circuit characteristics contribute to the prediction accuracy of area and delay.
+\end{enumerate}
+
+By addressing these two aspects, we aim to develop more accurate cost estimation models that can better guide the extraction phase in E-Syn, ultimately leading to improved Quality of Results (QoR) in logic synthesis.
 
 \section{Proposed Method}
-This section describes the proposed methodology in detail.
+This section describes the proposed methodology in detail. Our approach focuses on two main aspects: exploring different regression models and enhancing feature engineering for cost estimation.
 
-\subsection{Method Overview}
-% High-level overview of your proposed method
+\subsection{Regression Models}
+The original E-Syn framework primarily uses XGBoost for cost estimation. To improve prediction accuracy, we investigate multiple regression models and evaluate their performance. We select the following models based on their distinct characteristics and potential advantages:
 
-\subsection{Detailed Methodology}
-% Detailed description of each component
+\begin{itemize}
+\item \textbf{XGBoost}: As the baseline model used in E-Syn, XGBoost is a gradient boosting framework that excels at handling non-linear relationships and feature interactions. It provides excellent performance for structured data and offers built-in regularization to prevent overfitting.
 
-\subsection{Algorithm}
-% Algorithm pseudocode or detailed steps
-% Example algorithm:
-% \begin{algorithm}
-% \caption{Your Algorithm Name}
-% \begin{algorithmic}[1]
-% \STATE Initialize parameters
-% \STATE \textbf{for} each iteration \textbf{do}
-% \STATE \quad Perform computation
-% \STATE \textbf{end for}
-% \end{algorithmic}
-% \end{algorithm}
+\item \textbf{Random Forest}: We include Random Forest as an ensemble learning method that combines multiple decision trees. It is robust to overfitting and can capture complex interactions between features through its bagging approach, providing a different perspective compared to gradient boosting methods.
 
-\subsection{Key Innovations}
-% What makes your method novel or better?
+\item \textbf{LightGBM}: LightGBM is another gradient boosting framework that uses a leaf-wise tree growth strategy, making it faster and more memory-efficient than traditional gradient boosting methods. It is particularly suitable for large-scale datasets and can handle high-dimensional feature spaces effectively.
 
-\section{Experimental Setup}
-This section describes the experimental setup, datasets, and evaluation metrics.
+\item \textbf{Multi-Layer Perceptron (MLP)}: We incorporate MLP, a deep neural network model, to capture complex non-linear relationships that may not be easily modeled by tree-based methods. MLP can learn hierarchical feature representations and is capable of modeling intricate patterns in the data through its multiple hidden layers and non-linear activation functions. This makes it particularly valuable for discovering non-obvious relationships between circuit characteristics and post-mapping QoR.
 
-\subsection{Dataset}
-% Description of datasets used
+\item \textbf{CatBoost}: CatBoost is a gradient boosting algorithm designed to handle categorical features effectively and reduce overfitting through its ordered boosting technique. It provides robust performance with minimal hyperparameter tuning, making it a practical choice for cost estimation.
+\end{itemize}
 
-\subsubsection{Dataset Description}
-% Details about the dataset
+By comparing these diverse models, we aim to identify the most suitable approach for cost estimation in logic synthesis and potentially combine their strengths through ensemble methods.
 
-\subsubsection{Data Preprocessing}
-% Data preprocessing steps
+\subsection{Feature Engineering}
+The original E-Syn implementation primarily relies on basic features extracted from the circuit representation, including AST size (ASTSize), AST depth (ASTDepth), operator counts (+, !, *, \&), Liberty cost metrics (SUM\_LIB, AVE\_LIB), and total node count (SUM\_NODE). While these features provide fundamental information about the circuit structure, they may not fully capture the complexity and characteristics that influence post-mapping area and delay.
 
-\subsection{Implementation Details}
-% Implementation environment, tools, libraries
-% Example:
-% \begin{itemize}
-% \item Python 3.9
-% \item PyTorch 1.12
-% \item CUDA 11.6
-% \end{itemize}
+To enhance the predictive power of our regression models, we extend the feature set by incorporating additional feature categories. In total, we add \textbf{27 new features} across four categories. The complete list of these 27 features and their descriptions are presented in Table~1.
 
-\subsection{Evaluation Metrics}
-% Metrics used for evaluation (MAE, MAPE, RMSE, R², RRSE, etc.)
-% Example:
-% \begin{itemize}
-% \item Mean Absolute Error (MAE)
-% \item Mean Absolute Percentage Error (MAPE)
-% \item Root Mean Squared Error (RMSE)
-% \item Coefficient of Determination (R²)
-% \item Root Relative Squared Error (RRSE)
-% \end{itemize}
+\begin{table*}[t]
+\centering
+\caption{New Features Added to E-Syn Cost Estimation Models}
+\label{tab:new_features}
+\small
+\begin{tabular}{|l|l|p{9cm}|}
+\hline
+\textbf{Category} & \textbf{Feature Name} & \textbf{Description} \\
+\hline
+\multirow{5}{*}{\textbf{Structural Features (5)}} & num\_internal\_nodes & Number of internal nodes (non-leaf nodes) in the circuit, representing the complexity of the logic structure \\
+\cline{2-3}
+ & avg\_fanin & Average number of input connections per node, indicating the average input dependency \\
+\cline{2-3}
+ & max\_fanin & Maximum number of input connections for any single node, identifying highly connected nodes \\
+\cline{2-3}
+ & avg\_fanout & Average number of output connections per node, showing how signals are distributed \\
+\cline{2-3}
+ & max\_fanout & Maximum number of output connections for any single node, identifying nodes that drive many other nodes \\
+\hline
+\multirow{11}{*}{\textbf{Syntactic Features (11)}} & count\_and & Total count of AND operators (\& and *) in the circuit \\
+\cline{2-3}
+ & count\_or & Total count of OR operators (+) in the circuit \\
+\cline{2-3}
+ & count\_xor & Total count of XOR operators (\textasciicircum) in the circuit \\
+\cline{2-3}
+ & count\_not & Total count of NOT operators (!) in the circuit \\
+\cline{2-3}
+ & total\_operators & Sum of all operator counts, representing the total number of logic operations \\
+\cline{2-3}
+ & ratio\_and & Proportion of AND operators relative to total operators \\
+\cline{2-3}
+ & ratio\_or & Proportion of OR operators relative to total operators \\
+\cline{2-3}
+ & ratio\_xor & Proportion of XOR operators relative to total operators \\
+\cline{2-3}
+ & ratio\_not & Proportion of NOT operators relative to total operators \\
+\cline{2-3}
+ & num\_parentheses & Number of parentheses pairs in the expression, indicating structural nesting \\
+\cline{2-3}
+ & max\_nesting\_depth & Maximum depth of nested expressions, measuring the deepest level of logic hierarchy \\
+\hline
+\multirow{7}{*}{\textbf{Expression Complexity Features (7)}} & avg\_expr\_length & Average length (number of nodes) of sub-expressions, measuring typical expression size \\
+\cline{2-3}
+ & max\_expr\_length & Maximum length of any sub-expression, identifying the largest expression component \\
+\cline{2-3}
+ & min\_expr\_length & Minimum length of any sub-expression, identifying the smallest expression component \\
+\cline{2-3}
+ & std\_expr\_length & Standard deviation of expression lengths, measuring variability in expression sizes \\
+\cline{2-3}
+ & avg\_nesting\_depth & Average nesting depth across all nodes, indicating typical hierarchy level \\
+\cline{2-3}
+ & min\_nesting\_depth & Minimum nesting depth, showing the shallowest hierarchy level \\
+\cline{2-3}
+ & std\_nesting\_depth & Standard deviation of nesting depths, measuring variability in hierarchy structure \\
+\hline
+\multirow{4}{*}{\textbf{Graph Features (4)}} & graph\_nodes & Total number of nodes in the circuit graph representation \\
+\cline{2-3}
+ & graph\_edges & Total number of edges (connections) in the circuit graph \\
+\cline{2-3}
+ & graph\_density & Ratio of actual edges to maximum possible edges, measuring graph connectivity density \\
+\cline{2-3}
+ & avg\_degree & Average degree (number of connections) per node in the graph \\
+\hline
+\end{tabular}
+\end{table*}
 
-\subsection{Baseline Methods}
-% Methods used for comparison
-% Example:
-% \begin{itemize}
-% \item XGBoost
-% \item Random Forest
-% \item LightGBM
-% \item Multi-Layer Perceptron (MLP)
-% \item CatBoost
-% \end{itemize}
-
-\subsection{Experimental Configuration}
-% Hyperparameters, training settings, etc.
+To identify which features are most critical for accurate cost estimation, we employ permutation importance analysis. This technique measures the importance of each feature by randomly permuting its values and observing the resulting increase in prediction error. Features that cause a significant increase in error when permuted are considered more important for the model's predictions. Through this analysis, we can identify the most influential features and potentially remove redundant or less informative features, leading to more efficient and accurate models.
 
 \section{Experimental Results}
 This section presents the experimental results and analysis.
@@ -260,15 +306,12 @@ This section discusses the results, insights, limitations, and future work.
 \section{Conclusion}
 % Write your conclusion here. Summarize the main contributions, findings, and implications of your research.
 
-\section*{Acknowledgment}
-% Optional acknowledgment section
-
-The authors would like to thank...
 
 \begin{thebibliography}{00}
+\bibitem{esyn} Chen Chen, Guangyu Hu, Dongsheng Zuo, Cunxi Yu, Yuzhe Ma, and Hongce Zhang, ``E-Syn: E-Graph Rewriting with Technology-Aware Cost Functions for Logic Synthesis,'' \textit{Conference/Journal Name}, Year.
 \bibitem{b1} Author, A., and Author, B., ``Title of paper,'' \textit{Journal/Conference Name}, vol. X, no. Y, pp. 1--10, Year.
 \bibitem{b2} Author, C., \textit{Book Title}, Publisher, Year.
-\bibitem{b3} Author, D., ``Title of webpage,'' Website Name. [Online]. Available: URL
+\bibitem{b3} Robert Brayton and Alan Mishchenko, ``ABC: An Academic Industrial-Strength Verification Tool,'' \textit{Computer Aided Verification}, Springer, 2010, pp. 24--40.
 \end{thebibliography}
 
 % 定义 IEEEPARstart 命令（用于段落首字母大写）
