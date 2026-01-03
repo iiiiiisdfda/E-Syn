@@ -1,0 +1,285 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+% \usepackage{algorithmic}  % Optional: for algorithm pseudocode
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{abstract}
+\usepackage{url}
+\usepackage{balance}
+
+% IEEE 风格设置
+\geometry{
+    a4paper,
+    margin=0.75in,
+    top=0.75in,
+    bottom=1in
+}
+
+% 标题格式
+\makeatletter
+\renewcommand{\@maketitle}{%
+  \newpage
+  \null
+  \vskip 2em%
+  \begin{center}%
+  \let \footnote \thanks
+    {\LARGE \@title \par}%
+    \vskip 1.5em%
+    {\large
+      \lineskip .5em%
+      \begin{tabular}[t]{c}%
+        \@author
+      \end{tabular}\par}%
+    \vskip 1em%
+  \end{center}%
+  \par
+  \vskip 1.5em}
+\makeatother
+
+% 摘要格式
+\renewcommand{\abstractname}{Abstract}
+\renewenvironment{abstract}{%
+  \small
+  \begin{center}%
+    {\bfseries \abstractname\vspace{-.5em}\vspace{\z@}}%
+  \end{center}%
+  \quotation
+}{%
+  \endquotation
+}
+
+% 章节格式
+\makeatletter
+\renewcommand\section{\@startsection {section}{1}{\z@}%
+                                   {-3.5ex \@plus -1ex \@minus -.2ex}%
+                                   {2.3ex \@plus.2ex}%
+                                   {\normalfont\large\bfseries}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+                                     {-3.25ex\@plus -1ex \@minus -.2ex}%
+                                     {1.5ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries}}
+\makeatother
+
+% 参考文献格式
+\makeatletter
+\renewcommand\@biblabel[1]{[#1]}
+\makeatother
+
+\begin{document}
+
+\title{Your Research Paper Title}
+
+\author{
+\IEEEauthorblockN{1\textsuperscript{st} Your Name}
+\IEEEauthorblockA{\textit{Department} \\
+\textit{University/Institution}\\
+City, Country \\
+email@example.com}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} Co-Author Name}
+\IEEEauthorblockA{\textit{Department} \\
+\textit{University/Institution}\\
+City, Country \\
+coauthor@example.com}
+}
+
+% 定义 IEEEauthorblockN 和 IEEEauthorblockA（如果不存在）
+\providecommand{\IEEEauthorblockN}[1]{#1}
+\providecommand{\IEEEauthorblockA}[1]{#1}
+
+\maketitle
+
+\begin{abstract}
+% Write your abstract here. The abstract should provide a concise summary of your research, including the problem, methodology, key findings, and conclusions. Typically 150-250 words.
+% IEEE typically requires abstracts to be between 150-250 words.
+\end{abstract}
+
+\textbf{\textit{Keywords---}}keyword1, keyword2, keyword3, keyword4, keyword5
+
+\section{Introduction}
+\IEEEPARstart{T}{his} section introduces the background, motivation, and contributions of your research.
+
+\subsection{Background}
+% Background information about the research area
+
+\subsection{Motivation}
+% Why is this research important? What problem does it address?
+
+\subsection{Contributions}
+% What are the main contributions of this work?
+
+\subsection{Paper Organization}
+% Overview of how the paper is organized
+
+\section{Problem Formulation}
+This section provides a detailed formulation of the problem being addressed.
+
+\subsection{Problem Statement}
+% Clear and precise statement of the problem
+
+\subsection{Problem Constraints}
+% Constraints and assumptions
+
+\subsection{Mathematical Formulation}
+% Mathematical models and formulations
+% Example:
+% \begin{equation}
+% \label{eq:example}
+% f(x) = \sum_{i=1}^{n} w_i x_i
+% \end{equation}
+
+\section{Proposed Method}
+This section describes the proposed methodology in detail.
+
+\subsection{Method Overview}
+% High-level overview of your proposed method
+
+\subsection{Detailed Methodology}
+% Detailed description of each component
+
+\subsection{Algorithm}
+% Algorithm pseudocode or detailed steps
+% Example algorithm:
+% \begin{algorithm}
+% \caption{Your Algorithm Name}
+% \begin{algorithmic}[1]
+% \STATE Initialize parameters
+% \STATE \textbf{for} each iteration \textbf{do}
+% \STATE \quad Perform computation
+% \STATE \textbf{end for}
+% \end{algorithmic}
+% \end{algorithm}
+
+\subsection{Key Innovations}
+% What makes your method novel or better?
+
+\section{Experimental Setup}
+This section describes the experimental setup, datasets, and evaluation metrics.
+
+\subsection{Dataset}
+% Description of datasets used
+
+\subsubsection{Dataset Description}
+% Details about the dataset
+
+\subsubsection{Data Preprocessing}
+% Data preprocessing steps
+
+\subsection{Implementation Details}
+% Implementation environment, tools, libraries
+% Example:
+% \begin{itemize}
+% \item Python 3.9
+% \item PyTorch 1.12
+% \item CUDA 11.6
+% \end{itemize}
+
+\subsection{Evaluation Metrics}
+% Metrics used for evaluation (MAE, MAPE, RMSE, R², RRSE, etc.)
+% Example:
+% \begin{itemize}
+% \item Mean Absolute Error (MAE)
+% \item Mean Absolute Percentage Error (MAPE)
+% \item Root Mean Squared Error (RMSE)
+% \item Coefficient of Determination (R²)
+% \item Root Relative Squared Error (RRSE)
+% \end{itemize}
+
+\subsection{Baseline Methods}
+% Methods used for comparison
+% Example:
+% \begin{itemize}
+% \item XGBoost
+% \item Random Forest
+% \item LightGBM
+% \item Multi-Layer Perceptron (MLP)
+% \item CatBoost
+% \end{itemize}
+
+\subsection{Experimental Configuration}
+% Hyperparameters, training settings, etc.
+
+\section{Experimental Results}
+This section presents the experimental results and analysis.
+
+\subsection{Overall Performance}
+% Overall performance comparison
+% Example table:
+% \begin{table}[h]
+% \centering
+% \caption{Overall Performance Comparison}
+% \label{tab:overall}
+% \begin{tabular}{|c|c|c|c|c|}
+% \hline
+% Method & MAE & MAPE & RMSE & R² \\
+% \hline
+% Method 1 & & & & \\
+% \hline
+% Method 2 & & & & \\
+% \hline
+% \end{tabular}
+% \end{table}
+
+\subsection{Comparison with Baseline Methods}
+% Detailed comparison with other methods
+
+\subsection{Ablation Studies}
+% Analysis of different components
+
+\subsection{Case Studies}
+% Specific examples or case studies
+
+\subsection{Visualization}
+% Figures and tables showing results
+% Example figure:
+% \begin{figure}[h]
+% \centering
+% \includegraphics[width=\columnwidth]{figure.png}
+% \caption{Your figure caption}
+% \label{fig:example}
+% \end{figure}
+
+\section{Discussion}
+This section discusses the results, insights, limitations, and future work.
+
+\subsection{Result Analysis}
+% Analysis and interpretation of the results
+
+\subsection{Key Insights}
+% Important insights from the experiments
+
+\subsection{Limitations}
+% Limitations of the proposed method
+
+\subsection{Future Work}
+% Potential future research directions
+
+\section{Conclusion}
+% Write your conclusion here. Summarize the main contributions, findings, and implications of your research.
+
+\section*{Acknowledgment}
+% Optional acknowledgment section
+
+The authors would like to thank...
+
+\begin{thebibliography}{00}
+\bibitem{b1} Author, A., and Author, B., ``Title of paper,'' \textit{Journal/Conference Name}, vol. X, no. Y, pp. 1--10, Year.
+\bibitem{b2} Author, C., \textit{Book Title}, Publisher, Year.
+\bibitem{b3} Author, D., ``Title of webpage,'' Website Name. [Online]. Available: URL
+\end{thebibliography}
+
+% 定义 IEEEPARstart 命令（用于段落首字母大写）
+\makeatletter
+\newcommand{\IEEEPARstart}[2]{#1#2}
+\makeatother
+
+% Optional appendix section
+% \appendices
+% \section{Additional Experimental Results}
+% % Additional results, figures, or tables
+
+\balance
+\end{document}
