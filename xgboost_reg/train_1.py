@@ -83,6 +83,7 @@ def main():
     print(f"Feature columns: {feature_cols}")
     
     # 限制数据量：最多使用 50000 条（40000 训练 + 10000 验证）
+    # 注意：测试集（5000）应从原始数据集中单独划分，不在此处理
     max_total_samples = 50000
     max_train_samples = 40000
     max_val_samples = 10000
@@ -95,7 +96,7 @@ def main():
         X_df = X_df.iloc[selected_indices].reset_index(drop=True)
         y = y[selected_indices]
         print(f"   Using {len(X_df)} samples for training and validation")
-    
+
     # Split the dataset into train and validation sets
     # 使用 DataFrame 进行分割，保持特征名称
     # 确保训练集最多 40000，验证集 10000

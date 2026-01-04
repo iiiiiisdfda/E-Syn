@@ -276,6 +276,7 @@ def main(args=None):
     print(f"Target shape: {y.shape}")
     
     # 限制数据量：最多使用 50000 条（40000 训练 + 10000 验证）
+    # 注意：测试集（5000）应从原始数据集中单独划分
     max_total_samples = 50000
     max_train_samples = 40000
     max_val_samples = 10000
@@ -318,12 +319,12 @@ def main(args=None):
         test_ratio = 0.2
         X_temp, X_test, y_temp, y_test = train_test_split(
             X_scaled, y, test_size=test_ratio, random_state=42
-        )
+    )
         # 再从剩余数据中分出训练集和验证集
         val_ratio = max_val_samples / len(X_temp) if len(X_temp) > max_val_samples else 0.2
-        X_train, X_val, y_train, y_val = train_test_split(
+    X_train, X_val, y_train, y_val = train_test_split(
             X_temp, y_temp, test_size=val_ratio, random_state=42
-        )
+    )
         # 限制训练集大小
         if len(X_train) > max_train_samples:
             X_train = X_train[:max_train_samples]

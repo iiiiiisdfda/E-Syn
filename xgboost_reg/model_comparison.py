@@ -310,50 +310,50 @@ def main():
             # 如果 .model 文件加载失败，尝试使用 Python 文件作为后备
             if os.path.exists(xgb_py_path):
                 print(f"  Trying to load from {xgb_py_path} as fallback...")
-                try:
-                    # 动态导入 Python 模型代码
-                    import importlib.util
+        try:
+            # 动态导入 Python 模型代码
+            import importlib.util
                     import math
-                    spec = importlib.util.spec_from_file_location("xgb_model", xgb_py_path)
-                    xgb_model_module = importlib.util.module_from_spec(spec)
+            spec = importlib.util.spec_from_file_location("xgb_model", xgb_py_path)
+            xgb_model_module = importlib.util.module_from_spec(spec)
                     
                     # 在加载模块前，注入必要的导入（修复 nan 未定义问题）
                     xgb_model_module.__dict__['nan'] = float('nan')
                     xgb_model_module.__dict__['math'] = math
                     
                     # 加载模块
-                    spec.loader.exec_module(xgb_model_module)
-                    
+            spec.loader.exec_module(xgb_model_module)
+            
                     # 确保 nan 在模块中可用
                     if not hasattr(xgb_model_module, 'nan'):
                         xgb_model_module.nan = float('nan')
                     
-                    # 创建预测函数包装器
-                    def xgb_predict(X_data):
-                        predictions = []
-                        for row in X_data:
-                            pred = xgb_model_module.score(row.tolist())
-                            predictions.append(pred)
-                        return np.array(predictions)
-                    
-                    # 在测试集上评估
-                    print("  Evaluating on test set...")
-                    y_pred = xgb_predict(X)
-                    results['XGBoost'] = {
-                        'MAE': mean_absolute_error(y, y_pred),
-                        'MAPE': mape(y, y_pred),
-                        'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-                        'R²': r2_score(y, y_pred),
-                        'RRSE': rrse(y, y_pred),
-                    }
+            # 创建预测函数包装器
+            def xgb_predict(X_data):
+                predictions = []
+                for row in X_data:
+                    pred = xgb_model_module.score(row.tolist())
+                    predictions.append(pred)
+                return np.array(predictions)
+            
+            # 在测试集上评估
+            print("  Evaluating on test set...")
+            y_pred = xgb_predict(X)
+            results['XGBoost'] = {
+                'MAE': mean_absolute_error(y, y_pred),
+                'MAPE': mape(y, y_pred),
+                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                'R²': r2_score(y, y_pred),
+                'RRSE': rrse(y, y_pred),
+            }
                     print("  ✓ XGBoost model loaded from Python file")
                 except Exception as e2:
                     print(f"  ✗ Error loading XGBoost Python model: {e2}")
-                    return
-            else:
-                print(f"  ✗ Error: Model files not found")
-                print("  Please train the model first using train.py")
-                return
+            return
+    else:
+        print(f"  ✗ Error: Model files not found")
+        print("  Please train the model first using train.py")
+        return
     
     # 2. Random Forest - 从 Python 代码加载模型
     print("\n[2/5] Random Forest")

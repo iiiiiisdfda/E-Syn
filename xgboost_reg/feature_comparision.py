@@ -40,7 +40,7 @@ def main():
         else:
             print(f"✗ Error: Test data file not found at {args.data}")
             print("Tried alternative paths but none exist.")
-            return
+        return
     
     print(f"Loading test data from: {data_path}")
     data = pd.read_csv(data_path)

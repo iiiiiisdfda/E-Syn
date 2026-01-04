@@ -75,6 +75,7 @@ def main():
     print(f"Target statistics: mean={np.mean(y):.2f}, std={np.std(y):.2f}, min={np.min(y):.2f}, max={np.max(y):.2f}")
     
     # 限制数据量：最多使用 50000 条（40000 训练 + 10000 验证）
+    # 注意：测试集（5000）应从原始数据集中单独划分，不在此处理
     max_total_samples = 50000
     max_train_samples = 40000
     max_val_samples = 10000
