@@ -141,7 +141,7 @@ The main contributions of this work include:
 \item An analysis of the impact of regression model accuracy on E-Syn's extraction quality and final synthesis results
 \item Investigation of how different features affect prediction errors in cost estimation models, identifying critical features that significantly influence estimation accuracy
 \item Comprehensive evaluation demonstrating that reduced estimation errors lead to better extraction decisions and improved QoR
-\item Comparison with multiple regression models (XGBoost, Random Forest, LightGBM, MLP, CatBoost) to identify the most suitable approach for cost estimation
+\item Comparison with multiple regression models (XGBoost~\cite{xgboost}, Random Forest~\cite{random_forest}, LightGBM~\cite{lightgbm}, MLP~\cite{deep_learning}, CatBoost~\cite{catboost}) to identify the most suitable approach for cost estimation
 \end{itemize}
 
 \subsection{Paper Organization}
@@ -150,7 +150,6 @@ The main contributions of this work include:
 The rest of this paper is organized as follows: Section 2 formulates the problem of regression model optimization for E-Syn's cost estimation. Section 3 presents our proposed methodology for improving regression training. Section 4 presents the experimental results and discussion. Finally, Section 5 concludes the paper.
 
 \section{Problem Formulation}
-This section provides a detailed formulation of the problem being addressed.
 
 As discussed in the introduction, the accuracy of regression models used for cost estimation in E-Syn directly impacts the quality of extraction decisions and the final synthesis results. The original E-Syn implementation primarily uses XGBoost for cost estimation and relies on basic features extracted from the circuit representation, including AST size (ASTSize), AST depth (ASTDepth), operator counts (+, !, *, \&), Liberty cost metrics (SUM\_LIB, AVE\_LIB), and total node count (SUM\_NODE). While these features provide fundamental information about the circuit structure, they may not fully capture the complexity and characteristics that influence post-mapping area and delay.
 
@@ -280,7 +279,7 @@ This subsection describes the experimental setup, including datasets, evaluation
 The dataset is collected from circuit analysis using the E-Syn framework. Circuit data is extracted from S-expression files, and features are computed to represent various circuit characteristics. We collect two datasets of different scales, each containing 65,000 samples: a small-scale dataset with circuits having 10-20 inputs, 10-20 outputs, 10-20 internal nodes, and depth 3, and a large-scale dataset with circuits having 20-40 inputs, 20-40 outputs, 20-40 internal nodes, and depth 3-5. The combined dataset consists of 40,000 training samples, 10,000 validation samples, and 5,000 test samples. The training and validation sets are used for model training and hyperparameter tuning, while the test set is reserved for final model evaluation.
 
 \subsubsection{Implementation Details}
-Regression model training and evaluation are implemented in Python using scikit-learn, XGBoost, LightGBM, CatBoost, and PyTorch libraries. All experiments are performed on a Ubuntu 22.04.3 LTS server equipped with Intel Core i9-13900K processors, an NVIDIA GeForce RTX 4070 Ti GPU, and 125GB memory.
+Regression model training and evaluation are implemented in Python using scikit-learn, XGBoost, LightGBM, CatBoost, and PyTorch libraries. Our implementation is based on the open-source E-Syn framework~\cite{esyn_repo}. All experiments are performed on a Ubuntu 22.04.3 LTS server equipped with Intel Core i9-13900K processors, an NVIDIA GeForce RTX 4070 Ti GPU, and 125GB memory.
 
 \subsection{Regression Model Results}
 The experimental results presented in this section evaluate the performance of regression models on the generated circuit dataset. The following subsections present comparisons across different models, circuit scales, and feature sets.
@@ -308,6 +307,11 @@ This subsection evaluates the impact of different feature sets on prediction acc
 \bibitem{esyn} Chen Chen, Guangyu Hu, Dongsheng Zuo, Cunxi Yu, Yuzhe Ma, and Hongce Zhang, ``E-Syn: E-Graph Rewriting with Technology-Aware Cost Functions for Logic Synthesis,'' 2024.
 \bibitem{esyn_repo} Guangyu Hu, ``E-Syn: E-Graph Rewriting with Technology-Aware Cost Functions for Logic Synthesis,'' GitHub repository, 2024. [Online]. Available: \url{https://github.com/Gy-Hu/E-Syn}
 \bibitem{b3} Robert Brayton and Alan Mishchenko, ``ABC: An Academic Industrial-Strength Verification Tool,'' \textit{Computer Aided Verification}, Springer, 2010, pp. 24--40.
+\bibitem{xgboost} J. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD Int. Conf. Knowledge Discovery and Data Mining (KDD)}, San Francisco, CA, USA, 2016, pp. 785--794.
+\bibitem{random_forest} L. Breiman, ``Random forests,'' \textit{Machine Learning}, vol. 45, no. 1, pp. 5--32, Oct. 2001.
+\bibitem{lightgbm} G. Ke, Q. Meng, T. Finley, T. Wang, W. Chen, W. Ma, Q. Ye, and T.-Y. Liu, ``LightGBM: A highly efficient gradient boosting decision tree,'' in \textit{Advances in Neural Information Processing Systems (NeurIPS)}, 2017, pp. 3146--3154.
+\bibitem{deep_learning} I. Goodfellow, Y. Bengio, and A. Courville, \textit{Deep Learning}, Cambridge, MA, USA: MIT Press, 2016.
+\bibitem{catboost} L. Prokhorenkova, G. Gusev, A. Vorobev, A. Dorogush, and A. Gulin, ``CatBoost: Unbiased boosting with categorical features,'' in \textit{Advances in Neural Information Processing Systems (NeurIPS)}, 2018, pp. 6638--6648.
 \end{thebibliography}
 
 % 定义 IEEEPARstart 命令（用于段落首字母大写）

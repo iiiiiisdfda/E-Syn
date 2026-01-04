@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2024.3.19)  4 JAN 2026 23:35
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2024.3.19)  4 JAN 2026 23:55
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -339,49 +339,48 @@ Underfull \hbox (badness 3375) in paragraph at lines 132--133
 
 
 ]
-Underfull \hbox (badness 1067) in paragraph at lines 178--179
+Underfull \hbox (badness 1067) in paragraph at lines 177--178
 \OT1/cmr/m/n/10 strat-egy, mak-ing it faster and more memory-
  []
 
 [2 <./figure/esyn_process.png>]
-LaTeX Font Info:    Trying to load font information for U+msa on input line 195
+LaTeX Font Info:    Trying to load font information for U+msa on input line 194
 .
 
 (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 195
+LaTeX Font Info:    Trying to load font information for U+msb on input line 194
 .
 
 (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-Overfull \hbox (50.76994pt too wide) in paragraph at lines 195--254
+Overfull \hbox (50.76994pt too wide) in paragraph at lines 194--253
  [][] 
  []
 
 
-Underfull \hbox (badness 2837) in paragraph at lines 262--263
+Underfull \hbox (badness 2837) in paragraph at lines 261--262
 []\OT1/cmr/bx/n/10 Hyperparameter Op-ti-miza-tion\OT1/cmr/m/n/10 : For tree-
  []
 
-[3]
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
-
-Underfull \vbox (badness 1521) has occurred while \output is active []
-
- [4]
-Underfull \hbox (badness 1142) in paragraph at lines 308--309
+[3] [4]
+Underfull \hbox (badness 1142) in paragraph at lines 307--308
 \OT1/cmr/m/n/10 Graph Rewrit-ing with Technology-Aware Cost
+ []
+
+
+Underfull \hbox (badness 1024) in paragraph at lines 310--311
+\OT1/cmr/m/it/10 SIGKDD Int. Conf. Knowl-edge Dis-cov-ery and
  []
 
 [5] (./report.aux) ) 
 Here is how much of TeX's memory you used:
- 3965 strings out of 480247
- 58559 string characters out of 5896151
- 373934 words of memory out of 5000000
- 21859 multiletter control sequences out of 15000+600000
+ 3970 strings out of 480247
+ 58618 string characters out of 5896151
+ 373949 words of memory out of 5000000
+ 21864 multiletter control sequences out of 15000+600000
  477135 words of font info for 58 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  55i,11n,62p,781b,320s stack positions out of 5000i,500n,10000p,200000b,80000s
@@ -397,7 +396,7 @@ texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></usr/share/texlive
 ist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fo
 nts/type1/public/amsfonts/cm/cmti12.pfb></usr/share/texlive/texmf-dist/fonts/ty
 pe1/public/amsfonts/cm/cmtt10.pfb>
-Output written on report.pdf (5 pages, 228451 bytes).
+Output written on report.pdf (5 pages, 234480 bytes).
 PDF statistics:
  84 PDF objects out of 1000 (max. 8388607)
  50 compressed objects within 1 object stream
