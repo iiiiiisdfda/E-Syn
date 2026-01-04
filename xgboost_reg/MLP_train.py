@@ -205,7 +205,7 @@ def main(args=None):
     # 如果没有传入 args，使用默认值
     if args is None:
         class DefaultArgs:
-            data = '../sym_reg/graph50000new.csv'
+            data = '../sym_reg/simple_circuit_analysis_project_train_val.csv'
             target = 'area'
             epochs = 300
             early_stop_patience = 30
@@ -319,12 +319,12 @@ def main(args=None):
         test_ratio = 0.2
         X_temp, X_test, y_temp, y_test = train_test_split(
             X_scaled, y, test_size=test_ratio, random_state=42
-    )
+        )
         # 再从剩余数据中分出训练集和验证集
         val_ratio = max_val_samples / len(X_temp) if len(X_temp) > max_val_samples else 0.2
-    X_train, X_val, y_train, y_val = train_test_split(
+        X_train, X_val, y_train, y_val = train_test_split(
             X_temp, y_temp, test_size=val_ratio, random_state=42
-    )
+        )
         # 限制训练集大小
         if len(X_train) > max_train_samples:
             X_train = X_train[:max_train_samples]
@@ -485,52 +485,60 @@ def main(args=None):
     # 特征重要性（使用排列重要性）
     print("\nComputing permutation importance...")
     # 为了计算排列重要性，我们需要一个可以接受 numpy 数组的包装函数
-    def model_predict_wrapper(X):
-        return predict(best_model, X, device=device)
+    # 创建一个 sklearn 兼容的模型包装器
+    from sklearn.base import BaseEstimator, RegressorMixin
     
-    # 注意：permutation_importance 需要 sklearn 模型，这里我们手动实现简化版本
-    # 或者可以使用更小的样本集来加速
-    sample_size = min(1000, len(X_test))
-    sample_indices = np.random.choice(len(X_test), sample_size, replace=False)
-    X_sample = X_test[sample_indices]
-    y_sample = y_test[sample_indices]
+    class MLPWrapper(BaseEstimator, RegressorMixin):
+        def __init__(self, model, device='cpu'):
+            self.model = model
+            self.device = device
+            
+        def fit(self, X, y):
+            # 模型已经训练好了，这里只是兼容接口
+            return self
+            
+        def predict(self, X):
+            return predict(self.model, X, device=self.device)
     
-    baseline_pred = predict(best_model, X_sample, device=device)
-    baseline_score = mean_squared_error(y_sample, baseline_pred)
+    # 使用训练集计算 permutation importance（与其他模型保持一致）
+    # 使用 sklearn 的 permutation_importance，默认使用 R² 作为 scoring
+    mlp_wrapper = MLPWrapper(best_model, device=device)
+    perm_result = permutation_importance(
+        mlp_wrapper, X_train, y_train, 
+        n_repeats=10, random_state=42, n_jobs=-1,
+        scoring='r2'  # 明确指定使用 R²，与其他模型保持一致
+    )
     
-    feature_importances = []
-    for i in range(X_sample.shape[1]):
-        X_permuted = X_sample.copy()
-        np.random.shuffle(X_permuted[:, i])
-        permuted_pred = predict(best_model, X_permuted, device=device)
-        permuted_score = mean_squared_error(y_sample, permuted_pred)
-        importance = permuted_score - baseline_score
-        feature_importances.append(importance)
+    # 排序重要性
+    sorted_importances_idx = perm_result.importances_mean.argsort()
+    df_columns_sorted = [feature_names[i] for i in sorted_importances_idx]
     
-    # 绘制特征重要性
-    # 使用与特征提取相同的逻辑：使用之前定义的 feature_names
-    # 确保特征名称和重要性数量匹配
-    if len(feature_names) != len(feature_importances):
-        print(f"Warning: Feature names count ({len(feature_names)}) != importance count ({len(feature_importances)})")
-        # 如果数量不匹配，使用索引作为特征名
-        feature_names = [f'Feature_{i}' for i in range(len(feature_importances))]
-    importances_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': feature_importances
-    }).sort_values('importance', ascending=False)
+    # 创建 DataFrame 用于绘图（与其他模型格式一致）
+    importances = pd.DataFrame(
+        perm_result.importances[sorted_importances_idx].T,
+        columns=df_columns_sorted,
+    )
     
-    plt.figure(figsize=(10, 6))
-    plt.barh(importances_df['feature'], importances_df['importance'])
-    plt.xlabel('Permutation Importance (MSE increase)')
-    plt.title('MLP Feature Importance (Permutation)')
-    plt.tight_layout()
+    # 绘制 Permutation Importance（使用 box plot，与其他模型一致）
+    fig, ax = plt.subplots(figsize=(10, 6))
+    importances.plot.box(vert=False, whis=10, ax=ax)
+    ax.set_title("MLP Permutation Importances (train set)")
+    ax.axvline(x=0, color="k", linestyle="--")
+    ax.set_xlabel("Decrease in accuracy score")
+    fig.tight_layout()
     importance_path = os.path.join(output_dir, f'mlp_permutation_importance_{args.target}.png')
-    plt.savefig(importance_path, dpi=300, bbox_inches='tight')
-    print(f"Feature importance plot saved to '{importance_path}'")
+    fig.savefig(importance_path, dpi=300, bbox_inches='tight')
+    print(f"Permutation importance plot saved to '{importance_path}'")
     
-    # 保存 permutation importance 为 CSV
+    # 保存 Permutation Importance 为 CSV（与其他模型格式一致）
+    perm_importance_df = pd.DataFrame({
+        'feature': df_columns_sorted,
+        'importance_mean': perm_result.importances_mean[sorted_importances_idx],
+        'importance_std': perm_result.importances_std[sorted_importances_idx]
+    })
+    perm_importance_df = perm_importance_df.sort_values('importance_mean', ascending=False)
     perm_csv_path = os.path.join(output_dir, f'permutation_importance_{args.target}.csv')
-    importances_df.to_csv(perm_csv_path, index=False)
+    perm_importance_df.to_csv(perm_csv_path, index=False)
     print(f"Permutation importance CSV saved to '{perm_csv_path}'")
     
     print("\nTraining completed!")
@@ -538,8 +546,8 @@ def main(args=None):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Train MLP model for circuit area prediction')
-    parser.add_argument('--data', type=str, default='../sym_reg/feature1/10000.csv', 
-                        help='Path to CSV data file (default: ../sym_reg/feature1/10000.csv)')
+    parser.add_argument('--data', type=str, default='../sym_reg/simple_circuit_analysis_project_train_val.csv', 
+                        help='Path to CSV data file (default: ../sym_reg/simple_circuit_analysis_project_train_val.csv)')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'],
                         help='Target variable: area or delay (default: area)')
     parser.add_argument('--epochs', type=int, default=200, help='Number of training epochs (default: 200)')

@@ -39,10 +39,10 @@ def run_generate_eqn_parallel(i):
     import traceback
     try:
         # 复杂电路参数（推荐设置）
-        in_num = random.randint(20, 40)      # 输入：20-100（增加输入复杂度）
-        out_num = random.randint(20, 40)    # 输出：50-200（增加输出数量）
-        node_num = random.randint(20, 40)  # 内部节点：100-500（增加电路规模）
-        max_depth = random.randint(3, 5) 
+        in_num = random.randint(10, 20)      # 输入：20-100（增加输入复杂度）
+        out_num = random.randint(10, 20)    # 输出：50-200（增加输出数量）
+        node_num = random.randint(10, 20)  # 内部节点：100-500（增加电路规模）
+        max_depth = 3 
             
         ret = os.system(
             f"python ./generate_eqn.py -o aigfuzz_large/simple_circuit_{i}_large.eqn -i {in_num} --outputs {out_num} -n {node_num} --max-depth {max_depth} 2>&1")

@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 
-def split_csv(input_file, output_prefix=None, ratio=(10, 1, 2), shuffle=True, random_state=42):
+def split_csv(input_file, output_prefix=None, ratio=(9, 1, 2), shuffle=True, random_state=42):
     """
     将CSV文件按照指定比例分成两份：
     - 训练集+验证集（前两部分合并）

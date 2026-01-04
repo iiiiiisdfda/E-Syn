@@ -500,14 +500,35 @@ def main():
             # 加载模型检查点
             checkpoint = torch.load(mlp_model_path, map_location=device, weights_only=False)
             model_params = checkpoint.get('model_params', {'hidden_dims': [128, 64, 32], 'dropout_rate': 0.2})
-            input_dim = checkpoint.get('input_dim', X.shape[1])
+            saved_input_dim = checkpoint.get('input_dim', None)
             scaler = checkpoint.get('scaler')
+            
+            # 检查特征数量是否匹配
+            if saved_input_dim is not None and saved_input_dim != X.shape[1]:
+                print(f"  ⚠ WARNING: Feature count mismatch!")
+                print(f"  Model was trained with {saved_input_dim} features")
+                print(f"  Test data has {X.shape[1]} features")
+                print(f"  This indicates the model was trained with a different feature set.")
+                print(f"  Please retrain the MLP model using MLP_train.py with the correct data file.")
+                print(f"  Expected data file: ../sym_reg/simple_circuit_analysis_project_train_val.csv (36 features)")
+                return
             
             if scaler is None:
                 print("  ⚠ Warning: Scaler not found in checkpoint, creating default scaler")
                 from sklearn.preprocessing import StandardScaler
                 scaler = StandardScaler()
                 scaler.fit(X)  # 使用测试数据拟合（不理想，但可以工作）
+            else:
+                # 检查 scaler 的特征数量
+                if hasattr(scaler, 'n_features_in_') and scaler.n_features_in_ != X.shape[1]:
+                    print(f"  ⚠ WARNING: Scaler feature count mismatch!")
+                    print(f"  Scaler expects {scaler.n_features_in_} features")
+                    print(f"  Test data has {X.shape[1]} features")
+                    print(f"  Please retrain the MLP model with the correct feature set.")
+                    return
+            
+            # 使用保存的 input_dim 或当前特征数量
+            input_dim = saved_input_dim if saved_input_dim is not None else X.shape[1]
             
             # 创建模型
             hidden_dims = model_params.get('hidden_dims', [128, 64, 32])
