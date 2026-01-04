@@ -28,13 +28,11 @@
   \vskip 2em%
   \begin{center}%
   \let \footnote \thanks
-    {\LARGE \@title \par}%
+    {\Huge \@title \par}%
     \vskip 1.5em%
     {\large
       \lineskip .5em%
-      \begin{tabular}[t]{c}%
-        \@author
-      \end{tabular}\par}%
+      \@author\par}%
     \vskip 1em%
   \end{center}%
   \par
@@ -72,24 +70,26 @@
 
 \begin{document}
 
-\title{Your Research Paper Title}
+\title{Technology-Aware Logic Synthesis}
 
 \author{
-\IEEEauthorblockN{1\textsuperscript{st} Your Name}
-\IEEEauthorblockA{\textit{Department} \\
-\textit{University/Institution}\\
-City, Country \\
-email@example.com}
-\and
-\IEEEauthorblockN{2\textsuperscript{nd} Co-Author Name}
-\IEEEauthorblockA{\textit{Department} \\
-\textit{University/Institution}\\
-City, Country \\
-coauthor@example.com}
+\begin{minipage}[t]{0.45\textwidth}
+\centering
+\textbf{OU, XIN-HONG}\\[0.3em]
+\textit{National Taiwan University}\\
+r14921060@ntu.edu.tw
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.45\textwidth}
+\centering
+\textbf{LI, YUN-RU}\\[0.3em]
+\textit{National Taiwan University}\\
+r14943065@ntu.edu.tw
+\end{minipage}
 }
 
 % 定义 IEEEauthorblockN 和 IEEEauthorblockA（如果不存在）
-\providecommand{\IEEEauthorblockN}[1]{#1}
+\providecommand{\IEEEauthorblockN}[1]{\textbf{#1}\\[0.3em]}
 \providecommand{\IEEEauthorblockA}[1]{#1}
 
 \maketitle
@@ -116,7 +116,7 @@ coauthor@example.com}
 
 Logic synthesis is a fundamental step in digital design automation, significantly impacting the Quality of Results (QoR) such as area, timing, and power consumption. Traditional logic synthesis frameworks, such as ABC~\cite{b3}, employ greedy local optimization approaches that apply incremental changes to small portions of the circuit. These methods, while effective, often limit the exploration space and may miss opportunities for significant improvements.
 
-Recently, E-Syn~\cite{esyn} has emerged as a novel logic optimization framework that leverages equivalence graphs (e-graphs) for Boolean logic rewriting. E-Syn addresses the limitations of traditional AIG-based synthesis by maintaining equivalent classes of logic specifications, allowing exploration of a wider range of equivalent logic forms. A key innovation of E-Syn is its use of technology-aware cost functions obtained from machine learning models, specifically XGBoost regression, to bridge the gap between technology-independent logic cost and post-mapping QoR.
+Recently, E-Syn~\cite{esyn} has emerged as a novel logic optimization framework that leverages equivalence graphs (e-graphs) for Boolean logic rewriting. E-Syn addresses the limitations of traditional AIG-based synthesis by maintaining equivalent classes of logic specifications, allowing exploration of a wider range of equivalent logic forms. A key innovation of E-Syn is its use of technology-aware cost functions obtained from machine learning models, specifically XGBoost regression, to bridge the gap between technology-independent logic cost and post-mapping QoR. The overall workflow of the E-Syn framework is illustrated in Figure~\ref{fig:esyn_process}.
 
 \subsection{Motivation}
 % Why is this research important? What problem does it address?

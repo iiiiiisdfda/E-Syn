@@ -13,55 +13,40 @@ impl MLPModel {
 
     pub fn predict(&self, features: &[f64]) -> f64 {
         // Standardize features
-        assert_eq!(features.len(), 36);
+        assert_eq!(features.len(), 21);
 
         // Standardization: (x - mean) / scale
         let mut standardized: Vec<f64> = Vec::new();
-        standardized.push((features[0] - 1.9598943600e+03) / 2.6413544830e+03);
-        standardized.push((features[1] - 6.2365025907e+00) / 2.3173152807e+00);
-        standardized.push((features[2] - 5.1750220000e+01) / 2.8351393439e+01);
-        standardized.push((features[3] - 2.8962235781e+03) / 1.7049378435e+03);
-        standardized.push((features[4] - 5.9539972600e+03) / 3.5365845991e+03);
-        standardized.push((features[5] - 4.1930728000e+02) / 6.0444560617e+02);
-        standardized.push((features[6] - 4.0777812000e+02) / 5.9507923443e+02);
-        standardized.push((features[7] - 3.9532712000e+02) / 5.8026364945e+02);
-        standardized.push((features[8] - 7.3748184000e+02) / 1.0064779350e+03);
-        standardized.push((features[9] - 1.9598943600e+03) / 2.6413544830e+03);
-        standardized.push((features[10] - 2.1898675107e-01) / 5.9556899092e-02);
-        standardized.push((features[11] - 2.0583043053e-01) / 5.8894709506e-02);
-        standardized.push((features[12] - 2.0017432378e-01) / 5.8429074957e-02);
-        standardized.push((features[13] - 3.7500849463e-01) / 3.8713896429e-02);
-        standardized.push((features[14] - 3.9197887200e+03) / 5.2827089659e+03);
-        standardized.push((features[15] - 2.9266520000e+01) / 5.6393090968e+00);
-        standardized.push((features[16] - 2.8597788417e+01) / 5.1833748961e+00);
-        standardized.push((features[17] - 3.1833068800e+03) / 4.2886282930e+03);
-        standardized.push((features[18] - 2.0000000000e+00) / 1.0000000000e+00);
-        standardized.push((features[19] - 1.5672114405e+02) / 8.6820243238e+01);
-        standardized.push((features[20] - 1.6180168793e+01) / 3.1653360717e+00);
-        standardized.push((features[21] - 0.0000000000e+00) / 1.0000000000e+00);
-        standardized.push((features[22] - 5.5692841894e+00) / 1.0001777121e+00);
-        standardized.push((features[23] - 1.9808361600e+03) / 2.6413370077e+03);
-        standardized.push((features[24] - 7.1623858540e+04) / 3.7242070177e+04);
-        standardized.push((features[25] - 1.2742143925e-01) / 2.8434279237e-01);
-        standardized.push((features[26] - 7.3897104120e+01) / 7.7335089504e+01);
-        standardized.push((features[27] - 4.0777812000e+02) / 5.9507923443e+02);
-        standardized.push((features[28] - 7.3748184000e+02) / 1.0064779350e+03);
-        standardized.push((features[29] - 4.0528624000e+02) / 6.0397303710e+02);
-        standardized.push((features[30] - 1.4021040000e+01) / 3.1618408117e+00);
-        standardized.push((features[31] - 3.1833068800e+03) / 4.2886282930e+03);
-        standardized.push((features[32] - 3.0266520000e+01) / 5.6393090968e+00);
-        standardized.push((features[33] - 3.5952178720e+04) / 4.8481292534e+04);
-        standardized.push((features[34] - 1.9598943600e+03) / 2.6413544830e+03);
-        standardized.push((features[35] - 1.8348559940e+01) / 6.1169268899e-01);
+        standardized.push((features[0] - 9.0416322099e+04) / 1.1077585710e+04);
+        standardized.push((features[1] - 1.2970783681e+02) / 4.4062133594e+01);
+        standardized.push((features[2] - 9.6013732444e+01) / 4.7360813616e+01);
+        standardized.push((features[3] - 1.9291999198e+00) / 2.7708605961e-02);
+        standardized.push((features[4] - 2.5971325720e+00) / 4.9047452886e-01);
+        standardized.push((features[5] - 2.1826124509e+00) / 1.0277086234e-01);
+        standardized.push((features[6] - 2.4018702416e+01) / 7.3439169358e+00);
+        standardized.push((features[7] - 3.9387237959e+04) / 4.4362324953e+03);
+        standardized.push((features[8] - 3.2184379758e+04) / 6.0628597775e+03);
+        standardized.push((features[9] - 1.2615688390e+04) / 1.6335048521e+03);
+        standardized.push((features[10] - 8.1623626821e+04) / 9.2234028052e+03);
+        standardized.push((features[11] - 1.6581093293e+05) / 1.8644635514e+04);
+        standardized.push((features[12] - 2.3815805758e-01) / 1.6588970702e-02);
+        standardized.push((features[13] - 1.9311918787e-01) / 1.9578695231e-02);
+        standardized.push((features[14] - 7.6275933237e-02) / 7.1443769738e-03);
+        standardized.push((features[15] - 4.9244682132e-01) / 1.3076499768e-02);
+        standardized.push((features[16] - 3.3162186586e+05) / 3.7289271028e+04);
+        standardized.push((features[17] - 3.0134361552e+02) / 7.4334724538e+01);
+        standardized.push((features[18] - 1.8885179273e+02) / 6.6008176997e+01);
+        standardized.push((features[19] - 0.0000000000e+00) / 1.0000000000e+00);
+        standardized.push((features[20] - 7.3861998875e+01) / 1.3963280019e+01);
 
         // Forward pass through the network
         let mut x = standardized;
 
-        // Layer 1: 36 -> 128
-        let mut layer_0_out = vec![0.0; 128];
-        for j in 0..128 {
+        // Layer 1: 21 -> 256
+        let mut layer_0_out = vec![0.0; 256];
+        for j in 0..256 {
             let mut sum = 0.0;
-            for i in 0..36 {
+            for i in 0..21 {
                 // TODO: Replace with actual weight: weights[0][j][i]
                 sum += x[i] * 0.0;
             }
@@ -70,11 +55,11 @@ impl MLPModel {
         }
         x = layer_0_out;
 
-        // Layer 2: 128 -> 64
-        let mut layer_1_out = vec![0.0; 64];
-        for j in 0..64 {
+        // Layer 2: 256 -> 128
+        let mut layer_1_out = vec![0.0; 128];
+        for j in 0..128 {
             let mut sum = 0.0;
-            for i in 0..128 {
+            for i in 0..256 {
                 // TODO: Replace with actual weight: weights[1][j][i]
                 sum += x[i] * 0.0;
             }
@@ -83,11 +68,11 @@ impl MLPModel {
         }
         x = layer_1_out;
 
-        // Layer 3: 64 -> 32
-        let mut layer_2_out = vec![0.0; 32];
-        for j in 0..32 {
+        // Layer 3: 128 -> 64
+        let mut layer_2_out = vec![0.0; 64];
+        for j in 0..64 {
             let mut sum = 0.0;
-            for i in 0..64 {
+            for i in 0..128 {
                 // TODO: Replace with actual weight: weights[2][j][i]
                 sum += x[i] * 0.0;
             }
@@ -96,9 +81,9 @@ impl MLPModel {
         }
         x = layer_2_out;
 
-        // Output layer: 32 -> 1
+        // Output layer: 64 -> 1
         let mut output = 0.0;
-        for i in 0..32 {
+        for i in 0..64 {
             // TODO: Replace with actual weight: output_weights[i]
             output += x[i] * 0.0;
         }
