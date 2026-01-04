@@ -140,17 +140,19 @@ The main contributions of this work include:
 \subsection{Paper Organization}
 % Overview of how the paper is organized
 
-The rest of this paper is organized as follows: Section 2 formulates the problem of regression model optimization for E-Syn's cost estimation. Section 3 presents our proposed methodology for improving regression training. Section 4 describes the experimental setup, including datasets, evaluation metrics, and baseline methods. Section 5 presents the experimental results and analysis. Section 6 discusses the findings and implications. Finally, Section 7 concludes the paper.
+The rest of this paper is organized as follows: Section 2 formulates the problem of regression model optimization for E-Syn's cost estimation. Section 3 presents our proposed methodology for improving regression training. Section 4 presents the experimental results and discussion. Finally, Section 5 concludes the paper.
 
 \section{Problem Formulation}
 This section provides a detailed formulation of the problem being addressed.
 
-As discussed in the introduction, the accuracy of regression models used for cost estimation in E-Syn directly impacts the quality of extraction decisions and the final synthesis results. To improve the overall performance of E-Syn, we focus on optimizing the regression training process from two perspectives:
+As discussed in the introduction, the accuracy of regression models used for cost estimation in E-Syn directly impacts the quality of extraction decisions and the final synthesis results. The original E-Syn implementation primarily uses XGBoost for cost estimation and relies on basic features extracted from the circuit representation, including AST size (ASTSize), AST depth (ASTDepth), operator counts (+, !, *, \&), Liberty cost metrics (SUM\_LIB, AVE\_LIB), and total node count (SUM\_NODE). While these features provide fundamental information about the circuit structure, they may not fully capture the complexity and characteristics that influence post-mapping area and delay.
+
+To improve the overall performance of E-Syn, we focus on optimizing the regression training process from two perspectives:
 
 \begin{enumerate}
-\item \textbf{Modifying training models and methodologies}: We investigate different regression models and training approaches to reduce prediction errors. This includes exploring various machine learning algorithms (XGBoost, Random Forest, LightGBM, MLP, CatBoost) and optimizing their hyperparameters, training procedures, and model architectures to achieve better prediction accuracy for post-mapping area and delay estimation.
+\item \textbf{Modifying training models and methodologies}: We investigate different regression models and training approaches to reduce prediction errors. This includes exploring various machine learning algorithms beyond XGBoost and optimizing their hyperparameters, training procedures, and model architectures to achieve better prediction accuracy for post-mapping area and delay estimation.
 
-\item \textbf{Identifying useful features for prediction}: We analyze the impact of different features on prediction errors and identify which features are most critical for accurate cost estimation. This involves feature importance analysis, feature selection techniques, and understanding how different circuit characteristics contribute to the prediction accuracy of area and delay.
+\item \textbf{Identifying useful features for prediction}: We analyze the impact of different features on prediction errors and identify which features are most critical for accurate cost estimation. This involves extending the feature set beyond the basic features currently used in E-Syn, performing feature importance analysis, and understanding how different circuit characteristics contribute to the prediction accuracy of area and delay.
 \end{enumerate}
 
 By addressing these two aspects, we aim to develop more accurate cost estimation models that can better guide the extraction phase in E-Syn, ultimately leading to improved Quality of Results (QoR) in logic synthesis.
@@ -176,9 +178,7 @@ The original E-Syn framework primarily uses XGBoost for cost estimation. To impr
 By comparing these diverse models, we aim to identify the most suitable approach for cost estimation in logic synthesis and potentially combine their strengths through ensemble methods.
 
 \subsection{Feature Engineering}
-The original E-Syn implementation primarily relies on basic features extracted from the circuit representation, including AST size (ASTSize), AST depth (ASTDepth), operator counts (+, !, *, \&), Liberty cost metrics (SUM\_LIB, AVE\_LIB), and total node count (SUM\_NODE). While these features provide fundamental information about the circuit structure, they may not fully capture the complexity and characteristics that influence post-mapping area and delay.
-
-To enhance the predictive power of our regression models, we extend the feature set by incorporating additional feature categories. In total, we add \textbf{27 new features} across four categories. The complete list of these 27 features and their descriptions are presented in Table~1.
+To enhance the predictive power of our regression models, we extend the feature set by incorporating additional feature categories beyond the basic features used in the original E-Syn implementation. In total, we add \textbf{27 new features} across four categories. The complete list of these 27 features and their descriptions are presented in Table~1.
 
 \begin{table*}[t]
 \centering
@@ -248,60 +248,50 @@ To enhance the predictive power of our regression models, we extend the feature 
 
 To identify which features are most critical for accurate cost estimation, we employ permutation importance analysis. This technique measures the importance of each feature by randomly permuting its values and observing the resulting increase in prediction error. Features that cause a significant increase in error when permuted are considered more important for the model's predictions. Through this analysis, we can identify the most influential features and potentially remove redundant or less informative features, leading to more efficient and accurate models.
 
-\section{Experimental Results}
-This section presents the experimental results and analysis.
+\subsection{Training Methodology}
+For each regression model, we employ a systematic training approach to ensure fair comparison and optimal performance. The training process consists of the following steps:
 
-\subsection{Overall Performance}
-% Overall performance comparison
-% Example table:
-% \begin{table}[h]
-% \centering
-% \caption{Overall Performance Comparison}
-% \label{tab:overall}
-% \begin{tabular}{|c|c|c|c|c|}
-% \hline
-% Method & MAE & MAPE & RMSE & R² \\
-% \hline
-% Method 1 & & & & \\
-% \hline
-% Method 2 & & & & \\
-% \hline
-% \end{tabular}
-% \end{table}
+\begin{enumerate}
+\item \textbf{Hyperparameter Optimization}: For tree-based models (XGBoost, LightGBM, CatBoost, Random Forest), we perform grid search with 10-fold cross-validation to identify optimal hyperparameters. The hyperparameter search space is designed based on the characteristics of each model type, balancing model complexity and generalization ability. For MLP, we employ a manual hyperparameter search approach, testing different combinations of hidden layer dimensions, learning rates, and dropout rates on the validation set.
 
-\subsection{Comparison with Baseline Methods}
-% Detailed comparison with other methods
+\item \textbf{Model Training}: After identifying the best hyperparameters, we train the final model on the training set. For tree-based models, we use the optimized hyperparameters directly. For MLP, we employ early stopping based on validation loss to prevent overfitting.
 
-\subsection{Ablation Studies}
-% Analysis of different components
+\item \textbf{Feature Scaling}: We apply standard scaling to all features before training, ensuring that features with different scales contribute equally to the model learning process. This is particularly important for neural network models like MLP.
 
-\subsection{Case Studies}
-% Specific examples or case studies
+\item \textbf{Model Evaluation}: We evaluate each trained model on a separate validation set using multiple metrics including Mean Absolute Error (MAE), Mean Absolute Percentage Error (MAPE), Root Mean Squared Error (RMSE), R-squared (R²), and Root Relative Squared Error (RRSE) to comprehensively assess prediction accuracy.
+\end{enumerate}
 
-\subsection{Visualization}
-% Figures and tables showing results
-% Example figure:
-% \begin{figure}[h]
-% \centering
-% \includegraphics[width=\columnwidth]{figure.png}
-% \caption{Your figure caption}
-% \label{fig:example}
-% \end{figure}
+This systematic approach ensures that all models are trained and evaluated under consistent conditions, enabling fair comparison of their performance for cost estimation in logic synthesis.
 
-\section{Discussion}
-This section discusses the results, insights, limitations, and future work.
+\section{Experimental Results and Discussion}
+This section presents the experimental setup, results, analysis, and discussion of the findings, insights, limitations, and future work.
 
-\subsection{Result Analysis}
-% Analysis and interpretation of the results
+\subsection{Experimental Setup}
+This subsection describes the experimental setup, including datasets, evaluation metrics, and implementation details.
 
-\subsection{Key Insights}
-% Important insights from the experiments
+\subsubsection{Dataset}
+The dataset is collected from circuit analysis using the E-Syn framework. Circuit data is extracted from S-expression files, and features are computed to represent various circuit characteristics. We collect two datasets of different scales, each containing 65,000 samples: a small-scale dataset with circuits having 10-20 inputs, 10-20 outputs, 10-20 internal nodes, and depth 3, and a large-scale dataset with circuits having 20-40 inputs, 20-40 outputs, 20-40 internal nodes, and depth 3-5. The combined dataset consists of 50,000 training samples, 5,000 validation samples, and 10,000 test samples. The training and validation sets are used for model training and hyperparameter tuning, while the test set is reserved for final model evaluation.
 
-\subsection{Limitations}
-% Limitations of the proposed method
+\subsubsection{Implementation Details}
+Regression model training and evaluation are implemented in Python using scikit-learn, XGBoost, LightGBM, CatBoost, and PyTorch libraries. All experiments are performed on a Ubuntu 22.04.3 LTS server equipped with Intel Core i9-13900K processors, an NVIDIA GeForce RTX 4070 Ti GPU, and 125GB memory.
 
-\subsection{Future Work}
-% Potential future research directions
+\subsection{Regression Model Results}
+The experimental results presented in this section evaluate the performance of regression models on the generated circuit dataset. The following subsections present comparisons across different models, circuit scales, and feature sets.
+
+\subsubsection{Comparison of Different Models}
+This subsection compares the performance of different regression models (XGBoost, Random Forest, LightGBM, MLP, and CatBoost) on the cost estimation task. The evaluation metrics include MAE, MAPE, RMSE, R², and RRSE to comprehensively assess each model's prediction accuracy.
+
+% Add tables and figures here for model comparison results
+
+\subsubsection{Comparison of Different Circuit Scales}
+This subsection analyzes how regression models perform on circuits of different scales (small-scale vs. large-scale). We compare the prediction accuracy and error metrics for both small-scale and large-scale circuits to understand the impact of circuit complexity on model performance.
+
+% Add tables and figures here for scale comparison results
+
+\subsubsection{Comparison of Different Feature Sets}
+This subsection evaluates the impact of different feature sets on prediction accuracy. We compare models trained with only the original E-Syn features against models trained with the extended feature set (including the 27 new features). Additionally, we analyze feature importance using permutation importance to identify the most critical features for accurate cost estimation.
+
+% Add tables and figures here for feature comparison results
 
 \section{Conclusion}
 % Write your conclusion here. Summarize the main contributions, findings, and implications of your research.
