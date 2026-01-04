@@ -155,8 +155,9 @@ def main():
     print("X_train size:", X_train.shape)
     print("X_test size:", X_test.shape)
     # 使用 DataFrame 进行训练，这样模型会保存特征名称
+    # 重要：只使用训练集进行 grid search，避免数据泄漏
     grid_search = GridSearchCV(estimator=model, param_grid=params, scoring='neg_mean_absolute_percentage_error', cv=kf, verbose=1)
-    grid_search.fit(X_df, y)  # 使用 DataFrame 而不是 numpy array
+    grid_search.fit(X_train_df, y_train)  # 只使用训练集进行超参数搜索
 
     best_params = grid_search.best_params_
     print("Best parameters found:", best_params)

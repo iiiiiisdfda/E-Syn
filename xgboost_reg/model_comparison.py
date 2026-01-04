@@ -164,27 +164,42 @@ def main():
     print(f"Data shape: {data.shape}")
     print(f"Data columns: {data.columns.tolist()}")
     
-    # 从数据中提取特征（排除目标变量和相关列）
-    print("\nExtracting features from data...")
-    # 排除：lev, power, area, delay, gates, cap, and_gates
-    exclude_cols = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
-    exclude_cols = [col for col in exclude_cols if col in data.columns]
-    feature_cols = [col for col in data.columns if col not in exclude_cols]
-    print(f"Excluded columns: {exclude_cols}")
-    print(f"Final feature count: {len(feature_cols)}")
-    print(f"Feature columns: {feature_cols}")
-    
-    X = data[feature_cols].values
     # 选择目标变量
     if args.target == 'area':
         y = data['area'].values
     else:
         y = data['delay'].values
     
-    print(f"\nFeature shape: {X.shape}")
-    print(f"Number of features: {X.shape[1]}")
-    print(f"Target shape: {y.shape}")
-    print(f"Using {X.shape[0]} test samples for evaluation")
+    # 处理目标变量的 NaN 值
+    if np.isnan(y).any():
+        print(f"  Warning: Found NaN values in target, removing those samples")
+        valid_mask = ~np.isnan(y)
+        data = data[valid_mask].reset_index(drop=True)
+        y = y[valid_mask]
+    
+    print(f"\nTarget shape: {y.shape}")
+    print(f"Using {len(y)} test samples for evaluation")
+    
+    # 为不同模型准备不同的特征集
+    # Model 1 (xgb_data_0): 只使用原始 E-Syn 特征（9个）
+    original_features = ['ASTSize', 'ASTDepth', '+', '!', '*', '&', 'SUM_LIB', 'SUM_NODE', 'AVE_LIB']
+    available_original_features = [col for col in original_features if col in data.columns]
+    feature_cols_0 = available_original_features
+    
+    # Model 2 (xgb_data_1): 使用所有特征（排除基本列和 count_xor）
+    exclude_cols_1 = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates', 'count_xor']
+    exclude_cols_1 = [col for col in exclude_cols_1 if col in data.columns]
+    feature_cols_1 = [col for col in data.columns if col not in exclude_cols_1]
+    
+    # Model 3 (xgb_data_2): 使用所有特征（只排除基本列）
+    exclude_cols_2 = ['lev', 'power', 'area', 'delay', 'gates', 'cap', 'and_gates']
+    exclude_cols_2 = [col for col in exclude_cols_2 if col in data.columns]
+    feature_cols_2 = [col for col in data.columns if col not in exclude_cols_2]
+    
+    print(f"\nPrepared feature sets:")
+    print(f"  xgb_data_0: {len(feature_cols_0)} features (original)")
+    print(f"  xgb_data_1: {len(feature_cols_1)} features (all except count_xor)")
+    print(f"  xgb_data_2: {len(feature_cols_2)} features (all features)")
     
     # 定义要对比的模型
     models = {}
@@ -205,6 +220,16 @@ def main():
     xgb_py_path = f'xgb_data_2/xgb_model_{args.target}.py'
     xgb_model_path = f'xgb_data_2/xgb_best_model_{args.target}.model'
     
+    # 根据模型路径选择对应的特征集
+    # xgb_data_2 使用所有特征（36个）
+    X = data[feature_cols_2].values
+    feature_cols = feature_cols_2
+    
+    # 处理 NaN 值
+    if np.isnan(X).any():
+        print(f"  Warning: Found NaN values in features, filling with 0")
+        X = np.nan_to_num(X, nan=0.0)
+    
     # 优先使用 .model 文件
     if os.path.exists(xgb_model_path):
         print(f"  Loading XGBoost model from {xgb_model_path}...")
@@ -218,6 +243,28 @@ def main():
             if hasattr(models['XGBoost'], 'n_features_in_'):
                 expected_features = models['XGBoost'].n_features_in_
                 print(f"  Model expects {expected_features} features")
+                print(f"  Test data has {X.shape[1]} features")
+                if expected_features != X.shape[1]:
+                    print(f"  ⚠ WARNING: Feature count mismatch! Model expects {expected_features}, but test data has {X.shape[1]}")
+                    print(f"  This may indicate a training data mismatch. Please check:")
+                    print(f"    1. Which training script was used (train_0.py = 9 features, train_1.py = 35 features, train_2.py = 36 features)")
+                    print(f"    2. Whether training and test data use the same feature set")
+                    # 尝试使用正确的特征集
+                    if expected_features == len(feature_cols_0):
+                        print(f"  Attempting to use original features (9 features)...")
+                        X = data[feature_cols_0].values
+                        feature_cols = feature_cols_0
+                        X = np.nan_to_num(X, nan=0.0)
+                    elif expected_features == len(feature_cols_1):
+                        print(f"  Attempting to use features without count_xor (35 features)...")
+                        X = data[feature_cols_1].values
+                        feature_cols = feature_cols_1
+                        X = np.nan_to_num(X, nan=0.0)
+                    elif expected_features == len(feature_cols_2):
+                        print(f"  Using all features (36 features)...")
+                        X = data[feature_cols_2].values
+                        feature_cols = feature_cols_2
+                        X = np.nan_to_num(X, nan=0.0)
             
             model_feature_names = None
             if hasattr(models['XGBoost'], 'feature_names_in_') and models['XGBoost'].feature_names_in_ is not None:
@@ -310,46 +357,57 @@ def main():
             # 如果 .model 文件加载失败，尝试使用 Python 文件作为后备
             if os.path.exists(xgb_py_path):
                 print(f"  Trying to load from {xgb_py_path} as fallback...")
-        try:
-            # 动态导入 Python 模型代码
-            import importlib.util
+                try:
+                    # 动态导入 Python 模型代码
+                    import importlib.util
                     import math
-            spec = importlib.util.spec_from_file_location("xgb_model", xgb_py_path)
-            xgb_model_module = importlib.util.module_from_spec(spec)
+                    spec = importlib.util.spec_from_file_location("xgb_model", xgb_py_path)
+                    xgb_model_module = importlib.util.module_from_spec(spec)
                     
                     # 在加载模块前，注入必要的导入（修复 nan 未定义问题）
                     xgb_model_module.__dict__['nan'] = float('nan')
                     xgb_model_module.__dict__['math'] = math
                     
                     # 加载模块
-            spec.loader.exec_module(xgb_model_module)
-            
+                    spec.loader.exec_module(xgb_model_module)
+                    
                     # 确保 nan 在模块中可用
                     if not hasattr(xgb_model_module, 'nan'):
                         xgb_model_module.nan = float('nan')
+                            
+                    # 创建预测函数包装器
+                    def xgb_predict(X_data):
+                        # 处理 NaN 值
+                        X_data = np.nan_to_num(X_data, nan=0.0)
+                        predictions = []
+                        for row in X_data:
+                            # 确保行中没有 NaN
+                            row = np.nan_to_num(row, nan=0.0)
+                            pred = xgb_model_module.score(row.tolist())
+                            predictions.append(pred)
+                        return np.array(predictions)
                     
-            # 创建预测函数包装器
-            def xgb_predict(X_data):
-                predictions = []
-                for row in X_data:
-                    pred = xgb_model_module.score(row.tolist())
-                    predictions.append(pred)
-                return np.array(predictions)
-            
-            # 在测试集上评估
-            print("  Evaluating on test set...")
-            y_pred = xgb_predict(X)
-            results['XGBoost'] = {
-                'MAE': mean_absolute_error(y, y_pred),
-                'MAPE': mape(y, y_pred),
-                'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
-                'R²': r2_score(y, y_pred),
-                'RRSE': rrse(y, y_pred),
-            }
+                    # 在测试集上评估（确保使用正确的特征集和 NaN 处理）
+                    print("  Evaluating on test set...")
+                    # 重新准备数据，确保没有 NaN
+                    X_py = data[feature_cols].values
+                    X_py = np.nan_to_num(X_py, nan=0.0)
+                    y_pred = xgb_predict(X_py)
+                    results['XGBoost'] = {
+                        'MAE': mean_absolute_error(y, y_pred),
+                        'MAPE': mape(y, y_pred),
+                        'RMSE': np.sqrt(mean_squared_error(y, y_pred)),
+                        'R²': r2_score(y, y_pred),
+                        'RRSE': rrse(y, y_pred),
+                    }
                     print("  ✓ XGBoost model loaded from Python file")
                 except Exception as e2:
                     print(f"  ✗ Error loading XGBoost Python model: {e2}")
-            return
+                    return
+            else:
+                print("  ✗ Error: Model files not found")
+                print("  Please train the model first using train.py")
+                return
     else:
         print(f"  ✗ Error: Model files not found")
         print("  Please train the model first using train.py")
