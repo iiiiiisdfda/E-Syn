@@ -97,7 +97,7 @@ This script will:
 
 ## 3. How to Use Trained Models in E-Syn
 
-1. After training, copy the generated mlp_model_TARGET.rs in xgboost_reg/mlp_data to e-rewriter/src
+1. After training, copy the generated `xgboost_reg/mlp_data/mlp_model_TARGET.rs` to `e-rewriter/src`
 2. Build all the rust project ( `s-converter` , `analyzer` , `circuitparser` , `e-rewriter` , `infix2lisp` , `lisp2infix` ) by enter dir and run `cargo build --release`
 3. Convert the circuit to eqn format by using `write_eqn` in `abc`
 4. Copy and paste the eqn to `test_data/raw_circuit.eqn`
