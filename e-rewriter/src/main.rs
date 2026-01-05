@@ -10,9 +10,15 @@ use std::fmt::Debug;
 use std::f64::consts::PI;
 use std::collections::HashSet;
 use rand::Rng;
+use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::cmp::Ordering;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+// 声明 mlp_model_area 模块
+mod mlp_model_area;
+// 声明 sexpr_feature_extractor 模块
+mod sexpr_feature_extractor;
 
 
 
@@ -132,7 +138,7 @@ fn make_rules_enhance() -> Vec<Rewrite<Prop, ConstantFold>> {
     // XOR with AND: (X & Y) ^ (X & Z) = X & (Y ^ Z)
     rws.extend(rewrite!("xor-distributivity-and"; "(^ (* ?b ?c) (* ?b ?d))" <=> "(* ?b (^ ?c ?d))"));
     // XOR with OR: (X | Y) ^ (X | Z) = X | (Y ^ Z) when X & Y & Z = 0
-    // Note: This is more complex and may need conditions
+    // more complex and may need conditions
     // XOR negation: !(X ^ Y) = !X ^ Y = X ^ !Y
     rws.extend(rewrite!("xor-negation1"; "(! (^ ?b ?c))" <=> "(^ (! ?b) ?c)"));
     rws.extend(rewrite!("xor-negation2"; "(! (^ ?b ?c))" <=> "(^ ?b (! ?c))"));
@@ -221,6 +227,35 @@ impl<L: Language> CostFunction<L> for AstDepth {
         C: FnMut(Id) -> Self::Cost,
     {
         1 + enode.fold(0, |max, id| max.max(costs(id)))
+    }
+}
+
+pub struct AvgFanout;
+impl<L: Language> CostFunction<L> for AvgFanout {
+    type Cost = usize;
+    fn cost<C>(&mut self, enode: &L, mut costs: C) -> Self::Cost
+    where
+        C: FnMut(Id) -> Self::Cost,
+    {
+        // 计算平均扇出：
+        // 1. 当前节点的直接扇出 = 子节点数量
+        // 2. 所有子节点的平均扇出之和
+        // 3. 平均扇出 = (当前节点子节点数 + 所有子节点扇出之和) / (子节点数 + 1)
+        
+        // 计算子节点数量
+        let child_count = enode.fold(0, |count, _id| count + 1);
+        
+        // 如果当前节点是叶子节点（没有子节点），扇出为 0
+        if child_count == 0 {
+            0
+        } else {
+            // 计算所有子节点的平均扇出之和
+            let total_child_fanout = enode.fold(0, |sum, id| sum + costs(id));
+            
+            // 平均扇出 = (当前节点子节点数 + 所有子节点扇出之和) / (子节点数 + 1)
+            // 使用整数除法
+            (child_count + total_child_fanout) / (child_count + 1)
+        }
     }
 }
 
@@ -374,6 +409,102 @@ impl CostFunction<Prop> for Mixcost {
     }
 }
 
+/// 自定義的 Extractor，可以在相同 cost 的表達式中隨機選擇
+pub struct RandomExtractor<'a, CF: CostFunction<Prop>, N: Analysis<Prop>> {
+    cost_function: CF,
+    costs: HashMap<Id, (CF::Cost, Prop)>,
+    egraph: &'a EGraph<Prop, N>,
+}
+
+impl<'a, CF, N> RandomExtractor<'a, CF, N>
+where
+    CF: CostFunction<Prop>,
+    N: Analysis<Prop>,
+    CF::Cost: Ord + Clone,
+{
+    pub fn new(egraph: &'a EGraph<Prop, N>, cost_function: CF) -> Self {
+        let mut extractor = RandomExtractor {
+            costs: HashMap::default(),
+            egraph,
+            cost_function,
+        };
+        extractor.find_costs();
+        extractor
+    }
+
+    pub fn find_best(&self, eclass: Id) -> (CF::Cost, RecExpr<Prop>) {
+        let (cost, root) = self.costs[&self.egraph.find(eclass)].clone();
+        let expr = root.build_recexpr(|id| self.find_best_node(id).clone());
+        (cost, expr)
+    }
+
+    fn find_best_node(&self, eclass: Id) -> &Prop {
+        &self.costs[&self.egraph.find(eclass)].1
+    }
+
+    fn node_total_cost(&mut self, node: &Prop) -> Option<CF::Cost> {
+        let eg = &self.egraph;
+        let has_cost = |id| self.costs.contains_key(&eg.find(id));
+        if node.all(has_cost) {
+            let costs = &self.costs;
+            let cost_f = |id| costs[&eg.find(id)].0.clone();
+            Some(self.cost_function.cost(node, cost_f))
+        } else {
+            None
+        }
+    }
+
+    fn find_costs(&mut self) {
+        let mut did_something = true;
+        while did_something {
+            did_something = false;
+
+            for class in self.egraph.classes() {
+                let pass = self.make_pass(class);
+                match (self.costs.get(&class.id), pass) {
+                    (None, Some(new)) => {
+                        self.costs.insert(class.id, new);
+                        did_something = true;
+                    }
+                    (Some(old), Some(new)) if new.0 < old.0 => {
+                        self.costs.insert(class.id, new);
+                        did_something = true;
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
+
+    fn make_pass(&mut self, eclass: &EClass<Prop, N::Data>) -> Option<(CF::Cost, Prop)> {
+        let result: Vec<(CF::Cost, Prop)> = eclass
+            .iter()
+            .filter_map(|n| {
+                match self.node_total_cost(n) {
+                    Some(cost) => Some((cost, n.clone())),
+                    None => None,
+                }
+            })
+            .collect();
+      
+        let min_cost = result.iter().map(|(cost, _)| cost).cloned().min();
+
+        if let Some(min_cost) = min_cost {
+            let min_cost_tuples: Vec<(CF::Cost, Prop)> = result
+                .iter()
+                .filter(|(cost, _)| cost == &min_cost)
+                .cloned()
+                .collect();
+            let mut rng = rand::thread_rng();
+            if let Some(selected_tuple) = min_cost_tuples.choose(&mut rng) {
+                return Some(selected_tuple.clone());
+            }
+        }
+    
+        None
+    }
+}
+
 pub fn count_operators(s: &str) -> HashMap<String, f64> {
     let mut operator_counts = HashMap::new();
     for c in s.chars() {
@@ -396,6 +527,14 @@ pub fn count_ast_size_and_depth(s: &str) -> (f64, f64) {
     let size = ast_size.cost_rec(&expr) as f64;
     let depth = ast_depth.cost_rec(&expr) as f64;
     (size, depth)
+}
+
+/// 從 sexpr 字符串中提取所有特徵
+/// 返回一個包含 27 個特徵的向量，用於 MLP 模型預測
+pub fn extract_sexpr_features(sexpr_str: &str) -> Result<Vec<f64>, String> {
+    use sexpr_feature_extractor::SExprFeatureExtractor;
+    let mut extractor = SExprFeatureExtractor::new();
+    extractor.extract_features_vector(sexpr_str)
 }
 
 // pub struct Extractor1<'a, CF: CostFunction<L>, L: Language, N: Analysis<L>> {
@@ -573,7 +712,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     let mut contents = String::new();
     input_file.read_to_string(&mut contents)?;
     let expr: RecExpr<Prop> = contents.parse().unwrap();
-    println!("input expression: {}", expr.to_string());
+    // println!("input expression: {}", expr.to_string());
     let mut egraphin = EGraph::new(ConstantFold {});
     egraphin.add_expr(&expr);
     //egraphin.dot().to_png("./image/fooin.png").unwrap();
@@ -588,7 +727,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     //let egraph_node_limit = 25000000000;
     let egraph_node_limit = 25000000;
     let start = Instant::now();
-    let iterations = 500 as i32;
+    let iterations = 50 as i32;
     let runner = Runner::default()
         .with_explanations_enabled()
         .with_expr(&expr)
@@ -617,16 +756,33 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     let mut res_cost: HashMap<i32, usize> = HashMap::new();
 
     
+    // for i in 0..iterations+1 {
+    //     // 使用 RandomExtractor 來隨機選擇相同 cost 的表達式，以獲得不同的表達式
+    //     let extractor = RandomExtractor::new(&runner.egraph, AvgFanout);
+    //     let root = runner.roots[0];
+    //     let (best_cost, best) = extractor.find_best(root);
+    //     //println!("best_cost{}", best_cost);
+    //     results.insert(i, best);
+    //     res_cost.insert(i,best_cost);
+    // }
     for i in 0..iterations+1 {
-        
-       // let extractor = Extractor1::new(&runner.egraph, Mixcost);
-        let extractor = Extractor::new(&runner.egraph, AstDepth);
+        // 使用 RandomExtractor 來隨機選擇相同 cost 的表達式，以獲得不同的表達式
+        let extractor = RandomExtractor::new(&runner.egraph, AstDepth);
         let root = runner.roots[0];
         let (best_cost, best) = extractor.find_best(root);
         //println!("best_cost{}", best_cost);
         results.insert(i, best);
         res_cost.insert(i,best_cost);
     }
+    // for i in 0..iterations+1 {
+    //     // 使用 RandomExtractor 來隨機選擇相同 cost 的表達式，以獲得不同的表達式
+    //     let extractor = RandomExtractor::new(&runner.egraph, AstSize);
+    //     let root = runner.roots[0];
+    //     let (best_cost, best) = extractor.find_best(root);
+    //     //println!("best_cost{}", best_cost);
+    //     results.insert(i, best);
+    //     res_cost.insert(i,best_cost);
+    // }
     // for(key,value)in &res_cost{
     //     println!("Inserted key: {}, value: {}", key, value);
     // }
@@ -634,6 +790,24 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
     let mut sym_cost_dict: HashMap<i32, f64> = HashMap::new();
     for (key, best) in &results {
         let result_string = best.to_string();
+        
+        // 使用新的 sexpr 特征提取器提取完整的 27 個特徵
+        // 這些特徵可以用於 MLP 模型預測
+        match extract_sexpr_features(&result_string) {
+            Ok(features) => {
+                // features 是一個包含 27 個特徵的 Vec<f64>
+                // 可以直接用於 MLP 模型預測：
+                let model = mlp_model_area::MLPModel::new();
+                let prediction = model.predict(&features);
+                println!("MLP prediction for result {}: {}", key, prediction);
+                sym_cost_dict.insert(*key, prediction);
+
+            }
+            Err(e) => {
+                eprintln!("Failed to extract features from sexpr: {}", e);
+            }
+        }
+        
         let (size, depth) = count_ast_size_and_depth(&result_string);
         let operator_counts = count_operators(&result_string);
         let x1 = operator_counts.get("+").copied().unwrap_or(0.0);
@@ -673,7 +847,7 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
 
 
 
-        sym_cost_dict.insert(*key, sym_cost);
+        // sym_cost_dict.insert(*key, sym_cost);
     }
     // for(key,value)in &sym_cost_dict{
     //     println!("Inserted key: {}, value: {}", key, value);
@@ -693,18 +867,22 @@ fn main() ->Result<(), Box<dyn std::error::Error>> {
         output_file.write(output.as_bytes())?;
 
     }
-    let mut count =0;
+    // 去重：只輸出不同的表達式
+    let mut seen_expressions = HashSet::new();
+    let mut count = 0;
     for min_key in min_keys.iter() {
         let output = results.get(min_key).map(|result| result.to_string()).unwrap_or_default();
-
-    
-        let output_file_name = format!("{}/output_from_egg_{}.txt", prefix, count);
-         
-
-        if let Ok(mut output_file) = File::create(output_file_name) {
-            output_file.write_all(output.as_bytes()).ok();
+        
+        // 只輸出之前沒有見過的表達式
+        if !seen_expressions.contains(&output) {
+            seen_expressions.insert(output.clone());
+            let output_file_name = format!("{}/output_from_egg_{}.txt", prefix, count);
+            
+            if let Ok(mut output_file) = File::create(output_file_name) {
+                output_file.write_all(output.as_bytes()).ok();
+            }
+            count += 1;
         }
-        count +=1;
     }
 
 

@@ -92,6 +92,10 @@ def sympy_to_abc_eqn_normal_bool(expr): # sympy to abc eqn s-expression
     elif isinstance(expr, Or):
         return "(" + " + ".join(map(sympy_to_abc_eqn_normal_bool, expr.args)) + ")"
     elif isinstance(expr, Xor):
+        # XOR should use ^ in EQN format, not &
+        return "(" + " ^ ".join(map(sympy_to_abc_eqn_normal_bool, expr.args)) + ")"
+    elif isinstance(expr, Concat):
+        # CONCAT uses & in EQN format to connect multiple equations
         return "(" + " & ".join(map(sympy_to_abc_eqn_normal_bool, expr.args)) + ")"
     elif isinstance(expr, Not):
         return f"(!{sympy_to_abc_eqn_normal_bool(expr.args[0])})"
@@ -136,6 +140,7 @@ def conver_to_sexpr(data, multiple_output = False, output_file_path = "test_data
         
 def convert_to_abc_eqn(data, FORMULA_LIST=None, multiple_output = False):
     # read the s-expression file and convert to aag
+    print("debuf用")
     with open ("test_data/output_from_egg.txt", "r") as myfile:
         # read line by line
         sexpr=myfile.readlines()
@@ -154,8 +159,35 @@ def convert_to_abc_eqn(data, FORMULA_LIST=None, multiple_output = False):
             # write the new eqn
             myfile.write(data[3].split(" = ")[0] + " = " + result + "\n")
     else:
-        parse_res, _ = parser.parse(sexpr[0])
-        components =  list(parse_res.args)
+        parse_res, concat_spliter = parser.parse(sexpr[0])
+        
+        # Extract all components from nested Concat structure
+        # Method 1: Use concat_spliter if available (more reliable)
+        if concat_spliter and len(concat_spliter) > 0:
+            # Sort by keys to maintain order
+            sorted_keys = sorted(concat_spliter.keys())
+            components = [concat_spliter[key] for key in sorted_keys]
+            print(f"Extracted {len(components)} components from concat_spliter")
+        else:
+            # Method 2: Recursively extract from Concat structure (fallback)
+            def extract_concat_components(expr, components=None):
+                """Recursively extract all components from nested Concat"""
+                if components is None:
+                    components = []
+                
+                if isinstance(expr, Concat):
+                    for arg in expr.args:
+                        if isinstance(arg, Concat):
+                            extract_concat_components(arg, components)
+                        else:
+                            components.append(arg)
+                else:
+                    components.append(expr)
+                
+                return components
+            
+            components = extract_concat_components(parse_res)
+            print(f"Extracted {len(components)} components recursively")
         
         '''
         global order
@@ -222,9 +254,16 @@ if __name__ == "__main__":
     multiple_output_flag = False
     
     # process the raw circuit file
-    input_file_path = "test_data/raw_circuit.eqn"
+    # First, convert variable names to standardized format (piXX for inputs, poX for outputs)
+    command = "python convert_eqn_variables.py test_data/raw_circuit.eqn test_data/raw_circuit_converted.eqn"
+    print("Converting variable names in raw circuit file...")
+    os.system(command)
+    
+    # Use the converted file as input
+    input_file_path = "test_data/raw_circuit_converted.eqn"
     output_file_path = "test_data/original_circuit.eqn"
-
+    
+    print("process the raw circuit file")
     parser =  CircuitParser.CircuitParser(input_file_path, output_file_path)
     parser.process()
     
@@ -232,7 +271,7 @@ if __name__ == "__main__":
     with open ("test_data/original_circuit.eqn", "r") as myfile:
         # read line by line
         data=myfile.readlines()
-        
+    print("success process the raw circuit file")
     '''
     #############################################################################
     #

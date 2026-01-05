@@ -124,19 +124,63 @@ def predict(model, X, device='cuda', batch_size=256):
 
 # 生成 MLP 模型的 Rust 代码
 def generate_mlp_rust_code(model, model_params, scaler_mean, scaler_scale, feature_names):
-    """生成 MLP 模型的 Rust 代码模板"""
+    """生成 MLP 模型的 Rust 代码，包含实际的权重和偏置值"""
+    model.eval()  # 确保模型处于评估模式
+    
     rust_code = []
     rust_code.append("// Auto-generated MLP model code")
     rust_code.append("// This code implements a Multi-Layer Perceptron regression model")
-    rust_code.append("// Note: This is a template. You need to extract actual weights from the PyTorch model")
+    rust_code.append("// Generated from PyTorch model with actual weights and biases")
     rust_code.append("")
-    rust_code.append("pub struct MLPModel {")
-    rust_code.append("    // Model parameters will be embedded here")
-    rust_code.append("}")
+    
+    # 从模型中提取权重和偏置
+    linear_layers = []
+    for i, module in enumerate(model.model):
+        if isinstance(module, nn.Linear):
+            weight = module.weight.data.cpu().numpy()  # shape: (out_features, in_features)
+            bias = module.bias.data.cpu().numpy() if module.bias is not None else None  # shape: (out_features,)
+            linear_layers.append({
+                'weight': weight,
+                'bias': bias,
+                'in_features': module.in_features,
+                'out_features': module.out_features
+            })
+    
+    # 生成权重和偏置数组常量（在 impl 块外部）
+    rust_code.append("// Weight and bias constants")
+    for layer_idx, layer_info in enumerate(linear_layers):
+        weight = layer_info['weight']
+        bias = layer_info['bias']
+        in_dim = layer_info['in_features']
+        out_dim = layer_info['out_features']
+        
+        # 生成权重数组（扁平化存储：按行存储，即 [row0_col0, row0_col1, ..., row1_col0, ...]）
+        rust_code.append(f"const LAYER_{layer_idx}_WEIGHTS: &[f64] = &[")
+        weight_values = []
+        for j in range(out_dim):
+            for i in range(in_dim):
+                weight_values.append(f"{weight[j, i]:.10e}")
+        # 每行最多10个值，提高可读性
+        for i in range(0, len(weight_values), 10):
+            chunk = weight_values[i:i+10]
+            rust_code.append("    " + ", ".join(chunk) + ("," if i+10 < len(weight_values) else ""))
+        rust_code.append("];")
+        
+        # 生成偏置数组
+        if bias is not None:
+            rust_code.append(f"const LAYER_{layer_idx}_BIAS: &[f64] = &[")
+            bias_values = [f"{b:.10e}" for b in bias]
+            for i in range(0, len(bias_values), 10):
+                chunk = bias_values[i:i+10]
+                rust_code.append("    " + ", ".join(chunk) + ("," if i+10 < len(bias_values) else ""))
+            rust_code.append("];")
+        rust_code.append("")
+    
+    rust_code.append("pub struct MLPModel;")
     rust_code.append("")
     rust_code.append("impl MLPModel {")
     rust_code.append("    pub fn new() -> Self {")
-    rust_code.append("        MLPModel {}")
+    rust_code.append("        MLPModel")
     rust_code.append("    }")
     rust_code.append("")
     rust_code.append("    pub fn predict(&self, features: &[f64]) -> f64 {")
@@ -154,49 +198,55 @@ def generate_mlp_rust_code(model, model_params, scaler_mean, scaler_scale, featu
     rust_code.append("        // Forward pass through the network")
     
     # 获取模型结构信息
-    hidden_dims = model_params.get('hidden_dims', [128, 64, 32])
     input_dim = len(feature_names)
     
     rust_code.append(f"        let mut x = standardized;")
     rust_code.append("")
     
-    # 为每一层生成代码模板
-    prev_dim = input_dim
-    for layer_idx, hidden_dim in enumerate(hidden_dims):
-        rust_code.append(f"        // Layer {layer_idx + 1}: {prev_dim} -> {hidden_dim}")
-        rust_code.append(f"        let mut layer_{layer_idx}_out = vec![0.0; {hidden_dim}];")
-        rust_code.append(f"        for j in 0..{hidden_dim} {{")
+    # 为每一层生成代码（隐藏层）
+    for layer_idx, layer_info in enumerate(linear_layers[:-1]):  # 除了最后一层（输出层）
+        in_dim = layer_info['in_features']
+        out_dim = layer_info['out_features']
+        has_bias = layer_info['bias'] is not None
+        
+        rust_code.append(f"        // Layer {layer_idx + 1}: {in_dim} -> {out_dim}")
+        rust_code.append(f"        let mut layer_{layer_idx}_out = vec![0.0; {out_dim}];")
+        rust_code.append(f"        for j in 0..{out_dim} {{")
         rust_code.append(f"            let mut sum = 0.0;")
-        rust_code.append(f"            for i in 0..{prev_dim} {{")
-        rust_code.append(f"                // TODO: Replace with actual weight: weights[{layer_idx}][j][i]")
-        rust_code.append(f"                sum += x[i] * 0.0;")
+        rust_code.append(f"            for i in 0..{in_dim} {{")
+        rust_code.append(f"                sum += x[i] * LAYER_{layer_idx}_WEIGHTS[j * {in_dim} + i];")
         rust_code.append(f"            }}")
-        rust_code.append(f"            // TODO: Add bias term")
+        if has_bias:
+            rust_code.append(f"            sum += LAYER_{layer_idx}_BIAS[j];")
         rust_code.append(f"            layer_{layer_idx}_out[j] = sum.max(0.0); // ReLU")
         rust_code.append(f"        }}")
         rust_code.append(f"        x = layer_{layer_idx}_out;")
         rust_code.append("")
-        prev_dim = hidden_dim
     
-    # 输出层
-    rust_code.append(f"        // Output layer: {prev_dim} -> 1")
+    # 输出层（最后一层，不使用 ReLU）
+    output_layer = linear_layers[-1]
+    in_dim = output_layer['in_features']
+    out_dim = output_layer['out_features']
+    has_bias = output_layer['bias'] is not None
+    output_layer_idx = len(linear_layers) - 1
+    
+    rust_code.append(f"        // Output layer: {in_dim} -> {out_dim}")
     rust_code.append(f"        let mut output = 0.0;")
-    rust_code.append(f"        for i in 0..{prev_dim} {{")
-    rust_code.append(f"            // TODO: Replace with actual weight: output_weights[i]")
-    rust_code.append(f"            output += x[i] * 0.0;")
+    rust_code.append(f"        for i in 0..{in_dim} {{")
+    rust_code.append(f"            output += x[i] * LAYER_{output_layer_idx}_WEIGHTS[i];")
     rust_code.append(f"        }}")
-    rust_code.append("        // TODO: Add output bias")
+    if has_bias:
+        rust_code.append(f"        output += LAYER_{output_layer_idx}_BIAS[0];")
     rust_code.append("")
     rust_code.append("        output")
     rust_code.append("    }")
     rust_code.append("}")
     rust_code.append("")
-    rust_code.append("// Instructions:")
-    rust_code.append("// 1. Extract weights and biases from PyTorch model using:")
-    rust_code.append("//    for name, param in model.named_parameters():")
-    rust_code.append("//        print(f'{name}: {param.data}')")
-    rust_code.append("// 2. Replace TODO comments with actual weight values")
-    rust_code.append("// 3. Implement proper matrix multiplication")
+    rust_code.append("// Model structure:")
+    rust_code.append(f"// Input dimension: {input_dim}")
+    for i, layer_info in enumerate(linear_layers):
+        layer_type = "Hidden" if i < len(linear_layers) - 1 else "Output"
+        rust_code.append(f"// {layer_type} layer {i+1}: {layer_info['in_features']} -> {layer_info['out_features']}")
     
     return "\n".join(rust_code)
 
@@ -319,7 +369,7 @@ def main(args=None):
         test_ratio = 0.2
         X_temp, X_test, y_temp, y_test = train_test_split(
             X_scaled, y, test_size=test_ratio, random_state=42
-        )
+    )
         # 再从剩余数据中分出训练集和验证集
         val_ratio = max_val_samples / len(X_temp) if len(X_temp) > max_val_samples else 0.2
         X_train, X_val, y_train, y_val = train_test_split(

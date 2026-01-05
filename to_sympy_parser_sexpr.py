@@ -1,6 +1,18 @@
 import ply.yacc as yacc
 from sympy import symbols, And, Or, Not, Xor, Nand, Nor, Implies, Equivalent
+from sympy.logic.boolalg import BooleanFunction
 from prop_lexer import PropLexer
+
+# 定義 CONCAT 類別以區分 CONCAT 和普通的 AND
+class Concat(BooleanFunction):
+    """CONCAT 運算符，用於連接多個等式"""
+    @classmethod
+    def eval(cls, *args):
+        # 如果只有一個參數，直接返回
+        if len(args) == 1:
+            return args[0]
+        # 否則返回 Concat 對象
+        return None
 
 class PropParser(object):
     tokens = PropLexer.tokens
@@ -17,6 +29,7 @@ class PropParser(object):
     # Parsing rules
     precedence = (
         ("left", "OR"),
+        ("left", "XOR"),
         ("left", "AND"),
         ("left", "CONCAT"),
         ("right", "NOT"),
@@ -41,30 +54,30 @@ class PropParser(object):
     def p_prop_or(self, p):
         "prop : LPAREN OR prop prop RPAREN"
         p[0] = Or(p[3], p[4])
+    
+    def p_prop_xor(self, p):
+        "prop : LPAREN XOR prop prop RPAREN"
+        p[0] = Xor(p[3], p[4])
         
     def p_prop_concat(self, p):
         "prop : LPAREN CONCAT prop prop RPAREN"
-        # if p[3], p[4] both not start with `po`
-        # if not str(p[3]).startswith("po") and not str(p[4]).startswith("po"):
-        #     p[0] = Xor(p[3], p[4])
-        # elif str(p[3]).startswith("po") and not str(p[4]).startswith("po"):
-        #     p[0] = Nand(p[3], p[4])
-        # elif not str(p[3]).startswith("po") and str(p[4]).startswith("po"):
-        #     p[0] = Nand(p[4], p[3])
-        # else:
-        #     p[0] = Nand(p[3], p[4])
+        # CONCAT (&) 用於連接多個等式，使用 Concat 類別以區分於普通的 AND
+        p[0] = Concat(p[3], p[4])
         
-        "prop : prop CONCAT prop"
-        p[0] = Xor(p[3], p[4])
-        # if self.concat_spliter_id is 0, add p[1] and p[3] to concat_spliter
-        if self.concat_spliter_id == 0:
+        # Track components for splitting concat expressions
+        # Since parsing is bottom-up, components from nested Concat are already added
+        # We only need to add new components (non-Concat leaves)
+        if isinstance(p[3], Concat):
+            # Left side is already a Concat, its components are already tracked
+            # Just add the right component (p[4])
+            self.concat_spliter[self.concat_spliter_id] = p[4]
+            self.concat_spliter_id += 1
+        else:
+            # Left side is not a Concat, add both components
+            # This is the first (innermost) concat
             self.concat_spliter[self.concat_spliter_id] = p[3]
             self.concat_spliter[self.concat_spliter_id + 1] = p[4]
             self.concat_spliter_id += 2
-        else:
-            self.concat_spliter[self.concat_spliter_id] = p[4]
-            self.concat_spliter_id += 1
-            
 
     def p_prop_not(self, p):
         "prop : LPAREN NOT prop RPAREN"
