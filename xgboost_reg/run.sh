@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --data CSV_PATH         Path to CSV data file for training (default: ../sym_reg/new_50000.csv)"
             echo "  --target TARGET        Target variable: 'area' or 'delay' (default: area)"
             echo "  --eval-data CSV_PATH   Path to CSV data file for evaluation/comparison"
-            echo "                         (default: ../sym_reg/new_10000.csv)"
+            echo "                         (default: ../sym_reg/large_10000_filtered.csv)"
             echo "  --skip-comparison      Skip model comparison step"
             echo "  --cpu                  Force CPU mode for MLP training"
             echo "  -h, --help            Show this help message"

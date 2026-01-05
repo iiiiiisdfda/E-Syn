@@ -50,21 +50,48 @@ The default data paths in `run.sh` are configured to reproduce the results repor
 - Evaluation data: `../sym_reg/large_10000_filtered.csv`
 - Target: `area`
 
+**Output:**
+After training completes, the following results will be generated:
 
-### 2.3 Model Outputs
+- **Trained models** (saved in respective directories):
+  - `xgb_data_2/` - XGBoost model files and exports
+  - `rf_data/` - Random Forest model files and exports
+  - `lgbm_data/` - LightGBM model files and exports
+  - `mlp_data/` - MLP model files and exports
+  - `catboost_data/` - CatBoost model files and exports
 
-Trained models are saved in the following directories:
-- `xgb_data_2/` - XGBoost 
-- `rf_data/` - Random Forest
-- `lgbm_data/` - LightGBM
-- `mlp_data/` - MLP
-- `catboost_data/` - CatBoost
+- **Model comparison results** (in `xgboost_reg/` directory):
+  - `model_comparison_results_area.csv` - Comparison metrics (MAE, MAPE, RMSE, R², RRSE) for all models
+  - `model_comparison_area.png` - Visualization comparing all models across different metrics
 
-Each directory contains:
+Each model directory contains:
 - Trained model files (`.model`, `.pth`, `.pkl`, `.cbm`)
 - Feature importance plots
-- Permutation importance analysis
 - Rust code exports (`.rs` files)
+- Python code exports (`.py` files)
+
+
+### 2.3 Feature Set Comparison
+
+To train and compare models with different feature sets (original features vs. all features), use the feature comparison script:
+
+```bash
+cd xgboost_reg
+./train_and_compare_features.sh 
+```
+
+This script will:
+1. Train `xgb_data_0` model with original features only (using `../sym_reg/original_feature_train.csv`)
+2. Train `xgb_data_2` model with all features (using `../sym_reg/large_50000_filtered.csv`)
+3. Compare the two models using:
+   - Test data for original features: `../sym_reg/original_feature_test.csv`
+   - Test data for all features: `../sym_reg/large_10000_filtered.csv`
+
+**Output:**
+- Comparison results CSV: `feature_comparison_results/feature_comparison_results_area.csv`
+- MAPE comparison plot: `feature_comparison_results/feature_comparison_mape_area.png`
+- Trained models: `xgb_data_0/` and `xgb_data_2/`
+
 
 ## 3. How to Use Trained Models in E-Syn
 

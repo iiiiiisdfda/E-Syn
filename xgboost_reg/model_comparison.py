@@ -136,7 +136,7 @@ def cross_val_evaluate_mlp(mlp_wrapper, X, y, model_name="MLP", n_folds=10):
 
 def main():
     parser = argparse.ArgumentParser(description='Compare multiple trained models')
-    parser.add_argument('--data', type=str, default='../sym_reg/simple_circuit_analysis_project_test.csv', help='Path to data file')
+    parser.add_argument('--data', type=str, default='../sym_reg/large_10000_filtered.csv', help='Path to data file')
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
     
@@ -144,7 +144,8 @@ def main():
     data_path = args.data
     if not os.path.exists(data_path):
         alternative_paths = [
-            '../sym_reg/feature1/1000.csv',
+            '../sym_reg/large_10000_filtered.csv',
+            '../sym_reg/simple_circuit_analysis_project_test.csv',
             '../sym_reg/new_50000.csv',
             '../sym_reg/mig_circuit_analysis.csv',
             '../sym_reg/simple_circuit_analysis_large.csv',
@@ -407,7 +408,7 @@ def main():
             else:
                 print("  ✗ Error: Model files not found")
                 print("  Please train the model first using train.py")
-                return
+            return
     else:
         print(f"  ✗ Error: Model files not found")
         print("  Please train the model first using train.py")

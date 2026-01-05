@@ -22,18 +22,19 @@ def r(y_true, y_pred):
 
 def main():
     parser = argparse.ArgumentParser(description='Train XGBoost model')
-    parser.add_argument('--data', type=str, default='../sym_reg/simple_circuit_analysis_project_train_val.csv', help='Path to data file')
+    parser.add_argument('--data', type=str, default='../sym_reg/original_feature_train.csv', help='Path to data file')
     # 注意：确保训练数据和测试数据使用相同的特征集
-    # 如果使用 new_50000.csv (35 features)，测试时也要使用相同特征集
-    # 如果使用 simple_circuit_analysis_project_train_val.csv (36 features)，测试时也要使用相同特征集
+    # 使用 train.csv 包含原始特征：+, !, *, &, ASTSize, ASTDepth, SUM_LIB, SUM_NODE, AVE_LIB
     parser.add_argument('--target', type=str, default='area', choices=['area', 'delay'], help='Target variable')
     args = parser.parse_args()
     
     # 读取数据
     data_path = args.data
     if not os.path.exists(data_path):
-        # 优先使用与测试数据相同格式的文件（36 features）
+        # 优先使用训练文件
         alternative_paths = [
+            '../sym_reg/train.csv',  # 训练文件
+            '../sym_reg/original_feature_test.csv',  # 原始特征文件
             '../sym_reg/simple_circuit_analysis_project_train_val.csv',  # 36 features
             '../sym_reg/simple_circuit_analysis_large.csv',  # 可能也是 36 features
             '../sym_reg/new_50000.csv',  # 35 features (不同格式)

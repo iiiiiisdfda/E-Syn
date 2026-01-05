@@ -13,7 +13,7 @@ cd "$SCRIPT_DIR"
 # 解析命令行参数
 DATA_PATH="../sym_reg/new_50000.csv"
 TARGET="delay"
-EVAL_DATA_PATH="../sym_reg/new_10000.csv"  # 如果为空，使用训练数据路径
+EVAL_DATA_PATH="../sym_reg/large_10000_filtered.csv"  # 如果为空，使用训练数据路径
 SKIP_COMPARISON=false
 USE_CPU=false
 
@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --data CSV_PATH         Path to CSV data file for training (default: ../sym_reg/new_50000.csv)"
             echo "  --target TARGET        Target variable: 'area' or 'delay' (default: area)"
             echo "  --eval-data CSV_PATH   Path to CSV data file for evaluation/comparison"
-            echo "                         (default: same as --data if not specified)"
+            echo "                         (default: ../sym_reg/large_10000_filtered.csv)"
             echo "  --skip-comparison      Skip model comparison step"
             echo "  --cpu                  Force CPU mode for MLP training (useful if GPU causes segmentation fault)"
             echo "  -h, --help            Show this help message"
