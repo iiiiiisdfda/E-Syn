@@ -253,8 +253,6 @@ To enhance the predictive power of our regression models, we extend the feature 
 \end{tabular}
 \end{table*}
 
-To identify which features are most critical for accurate cost estimation, we employ permutation importance analysis. This technique measures the importance of each feature by randomly permuting its values and observing the resulting increase in prediction error. Features that cause a significant increase in error when permuted are considered more important for the model's predictions. Through this analysis, we can identify the most influential features and potentially remove redundant or less informative features, leading to more efficient and accurate models.
-
 \subsection{Training Methodology}
 For each regression model, we employ a systematic training approach. The training process consists of the following steps:
 
@@ -301,9 +299,16 @@ Given these results, XGBoost is the most suitable model among the five evaluated
 % Add tables and figures here for model comparison results
 
 \subsubsection{Comparison of Different Feature Sets}
-We compare models trained with only the original E-Syn features against models trained with the extended feature set (including the 27 new features). Additionally, we analyze feature importance using permutation importance to identify the most critical features for accurate cost estimation.
+We compare models trained with only the original E-Syn features against models trained with new features (including the 27 additional features). Figure~\ref{fig:feature_comparison_mape} shows the MAPE comparison results. The model using only original features achieves lower MAPE compared to the model using new features, indicating that the original feature set is more effective for cost estimation in this context.
 
-% Add tables and figures here for feature comparison results
+The inferior performance of the new features can be attributed to two main factors. First, the circuit generation program used to create training data was implemented separately to generate circuits containing XOR gates. This custom implementation results in circuits that differ significantly from other circuits in the dataset, creating a distribution mismatch that affects the model's ability to generalize from the new features. Second, E-Syn stores circuits in S-expression (sexpr) format, while training data generation uses equation (eqn) format. This format discrepancy may introduce inconsistencies in feature extraction between the two representations, leading to misalignment in the feature values computed from different circuit formats.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{figure/feature_comparion_mape_area.png}
+\caption{MAPE comparison between models trained with original features only and new features for area estimation.}
+\label{fig:feature_comparison_mape}
+\end{figure}
 
 \section{Conclusion}
 % Write your conclusion here. Summarize the main contributions, findings, and implications of your research.

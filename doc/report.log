@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2024.3.19)  5 JAN 2026 07:03
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2024.3.19)  5 JAN 2026 08:11
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -218,7 +218,7 @@ File: l3backend-pdftex.def 2022-01-12 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count277
 \l__pdf_internal_box=\box54
 )
-No file report.aux.
+(./report.aux)
 \openout1 = `report.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 72.
@@ -235,6 +235,7 @@ LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 72.
 LaTeX Font Info:    ... okay on input line 72.
 LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 72.
 LaTeX Font Info:    ... okay on input line 72.
+
 (/usr/share/texlive/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
 \scratchcounter=\count278
@@ -340,16 +341,6 @@ misspelled it (e.g., `\hobx'), type `I' and the correct
 spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
-
-LaTeX Warning: Citation `b3' on page 1 undefined on input line 118.
-
-
-LaTeX Warning: Citation `esyn' on page 1 undefined on input line 120.
-
-
-LaTeX Warning: Reference `fig:esyn_process' on page 1 undefined on input line 1
-20.
-
 ! Undefined control sequence.
 l.127 \IEEEPARstart
                    {T}{o} address this limitation, we propose to optimize th...
@@ -363,21 +354,6 @@ and I'll forget about whatever was undefined.
 Underfull \hbox (badness 3375) in paragraph at lines 133--134
 []\OT1/cmr/m/n/10 Validating that im-proved re-gres-sion ac-cu-racy
  []
-
-
-LaTeX Warning: Citation `xgboost' on page 1 undefined on input line 145.
-
-
-LaTeX Warning: Citation `random_forest' on page 1 undefined on input line 145.
-
-
-LaTeX Warning: Citation `lightgbm' on page 1 undefined on input line 145.
-
-
-LaTeX Warning: Citation `deep_learning' on page 1 undefined on input line 145.
-
-
-LaTeX Warning: Citation `catboost' on page 1 undefined on input line 145.
 
 [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
 
@@ -405,79 +381,71 @@ Overfull \hbox (50.76994pt too wide) in paragraph at lines 195--254
  []
 
 
-Underfull \hbox (badness 2837) in paragraph at lines 262--263
+Underfull \hbox (badness 2837) in paragraph at lines 260--261
 []\OT1/cmr/bx/n/10 Hyperparameter Op-ti-miza-tion\OT1/cmr/m/n/10 : For tree-
  []
 
-
-LaTeX Warning: Citation `esyn_repo' on page 3 undefined on input line 281.
-
-
-LaTeX Warning: Reference `fig:model_comparison_mape' on page 3 undefined on inp
-ut line 286.
-
 [3]
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
 <figure/model_comparison_area_mape.png, id=24, 713.3049pt x 426.6339pt>
 File: figure/model_comparison_area_mape.png Graphic file (type png)
 <use figure/model_comparison_area_mape.png>
 Package pdftex.def Info: figure/model_comparison_area_mape.png  used on input l
-ine 296.
+ine 294.
 (pdftex.def)             Requested size: 234.76729pt x 140.41203pt.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
-Underfull \hbox (badness 1142) in paragraph at lines 313--314
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [4]
+<figure/feature_comparion_mape_area.png, id=29, 715.7139pt x 424.9476pt>
+File: figure/feature_comparion_mape_area.png Graphic file (type png)
+<use figure/feature_comparion_mape_area.png>
+Package pdftex.def Info: figure/feature_comparion_mape_area.png  used on input 
+line 308.
+(pdftex.def)             Requested size: 234.76729pt x 139.39018pt.
+
+Underfull \hbox (badness 1142) in paragraph at lines 318--319
 \OT1/cmr/m/n/10 Graph Rewrit-ing with Technology-Aware Cost
  []
 
 
-Underfull \vbox (badness 3492) has occurred while \output is active []
-
- [4]
-Underfull \hbox (badness 1024) in paragraph at lines 316--317
+Underfull \hbox (badness 1024) in paragraph at lines 321--322
 \OT1/cmr/m/it/10 SIGKDD Int. Conf. Knowl-edge Dis-cov-ery and
  []
 
 
-Overfull \vbox (1.33101pt too high) has occurred while \output is active []
+Package balance Warning: You have called \balance in second column
+(balance)                Columns might not be balanced.
 
-
-[5 <./figure/model_comparison_area_mape.png>] (./report.aux)
-
-LaTeX Warning: There were undefined references.
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
- ) 
+[5 <./figure/model_comparison_area_mape.png> <./figure/feature_comparion_mape_a
+rea.png>] (./report.aux) ) 
 Here is how much of TeX's memory you used:
- 5240 strings out of 480247
- 83731 string characters out of 5896151
- 394029 words of memory out of 5000000
- 23130 multiletter control sequences out of 15000+600000
+ 5250 strings out of 480247
+ 84072 string characters out of 5896151
+ 394076 words of memory out of 5000000
+ 23137 multiletter control sequences out of 15000+600000
  477135 words of font info for 58 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 55i,11n,63p,716b,320s stack positions out of 5000i,500n,10000p,200000b,80000s
- </home/ice890425/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000
-.600pk></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
-></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr
-/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb></usr/share/
-texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbxti10.pfb></usr/share/texl
-ive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/tex
-mf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/share/texlive/texmf-dist
-/fonts/type1/public/amsfonts/cm/cmr17.pfb></usr/share/texlive/texmf-dist/fonts/
-type1/public/amsfonts/cm/cmr9.pfb></usr/share/texlive/texmf-dist/fonts/type1/pu
-blic/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/a
-msfonts/cm/cmti12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfont
-s/cm/cmtt10.pfb>
-Output written on report.pdf (5 pages, 342469 bytes).
+ 55i,11n,63p,781b,320s stack positions out of 5000i,500n,10000p,200000b,80000s
+ </home/ice890425/.texlive2021/texmf-var/fonts/pk/ljf
+our/jknappen/ec/tcrm1000.600pk></usr/share/texlive/texmf-dist/fonts/type1/publi
+c/amsfonts/cm/cmbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsf
+onts/cm/cmbx12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/c
+m/cmbx9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbxt
+i10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb
+></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/
+share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></usr/share/t
+exlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/share/texlive/t
+exmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-d
+ist/fonts/type1/public/amsfonts/cm/cmti12.pfb></usr/share/texlive/texmf-dist/fo
+nts/type1/public/amsfonts/cm/cmtt10.pfb>
+Output written on report.pdf (5 pages, 443967 bytes).
 PDF statistics:
- 85 PDF objects out of 1000 (max. 8388607)
+ 87 PDF objects out of 1000 (max. 8388607)
  50 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
- 11 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 16 words of extra memory for PDF output out of 10000 (max. 10000000)
 
